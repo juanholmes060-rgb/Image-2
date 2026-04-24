@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="GPT-Image-2 图片生成工具" />
+    <title>AI 图片生成器</title>
+    <link rel="stylesheet" href="/styles/main.css" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --primary: #6366f1;
+        --primary-hover: #4f46e5;
+        --background: #0a0a0a;
+        --foreground: #ededed;
+        --muted-foreground: #a1a1aa;
+        --card-bg: #1a1a1a;
+        --border: #2a2a2a;
+        --error: #ef4444;
+        --success: #22c55e;
+      }
+
+      body {
+        background: var(--background);
+        color: var(--foreground);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 640px;
+      }
+
+      /* Login Page Styles */
+      .login-container {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 3rem 2.5rem;
+        text-align: center;
+      }
+
+      .login-icon {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1.5rem;
+        background: linear-gradient(135deg, var(--primary), #8b5cf6);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+      }
+
+      .login-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+
+      .login-subtitle {
+        color: var(--muted-foreground);
+        margin-bottom: 2rem;
+        font-size: 0.95rem;
+      }
+
+      .form-group {
+        margin-bottom: 1.25rem;
+        text-align: left;
+      }
+
+      .form-label {
+        display: block;
+        font-size: 0.875rem;
+        color: var(--muted-foreground);
+        margin-bottom: 0.5rem;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 0.875rem 1rem;
+        background: var(--background);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--foreground);
+        font-size: 1rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+
+      .form-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+      }
+
+      .btn {
+        width: 100%;
+        padding: 0.875rem 1.5rem;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s, transform 0.1s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+      }
+
+      .btn:hover {
+        background: var(--primary-hover);
+      }
+
+      .btn:active {
+        transform: scale(0.98);
+      }
+
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .error-message {
+        color: var(--error);
+        font-size: 0.875rem;
+        margin-top: 1rem;
+        display: none;
+      }
+
+      .error-message.show {
+        display: block;
+      }
+
+      /* Generator Page Styles */
+      .generator-container {
+        display: none;
+        width: 100%;
+        max-width: 720px;
+      }
+
+      .generator-container.active {
+        display: block;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+      }
+
+      .header-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .header-badge {
+        background: linear-gradient(135deg, var(--primary), #8b5cf6);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+
+      .btn-logout {
+        padding: 0.5rem 1rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        color: var(--muted-foreground);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: border-color 0.2s, color 0.2s;
+      }
+
+      .btn-logout:hover {
+        border-color: var(--muted-foreground);
+        color: var(--foreground);
+      }
+
+      .card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .options-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+      }
+
+      .form-select {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        background: var(--background);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--foreground);
+        font-size: 0.95rem;
+        cursor: pointer;
+      }
+
+      .form-select:focus {
+        outline: none;
+        border-color: var(--primary);
+      }
+
+      .textarea {
+        width: 100%;
+        padding: 1rem;
+        background: var(--background);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--foreground);
+        font-size: 0.95rem;
+        resize: vertical;
+        min-height: 120px;
+        font-family: inherit;
+      }
+
+      .textarea:focus {
+        outline: none;
+        border-color: var(--primary);
+      }
+
+      .textarea::placeholder {
+        color: var(--muted-foreground);
+      }
+
+      /* Image Preview Styles */
+      .preview-section {
+        display: none;
+        margin-top: 1.5rem;
+      }
+
+      .preview-section.active {
+        display: block;
+      }
+
+      .preview-container {
+        background: var(--background);
+        border-radius: 12px;
+        padding: 1rem;
+        text-align: center;
+      }
+
+      .preview-image {
+        max-width: 100%;
+        max-height: 500px;
+        border-radius: 8px;
+        object-fit: contain;
+      }
+
+      .preview-actions {
+        margin-top: 1rem;
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+      }
+
+      .btn-download {
+        padding: 0.625rem 1.25rem;
+        background: var(--success);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: opacity 0.2s;
+      }
+
+      .btn-download:hover {
+        opacity: 0.9;
+      }
+
+      .btn-regenerate {
+        padding: 0.625rem 1.25rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        color: var(--foreground);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: border-color 0.2s;
+      }
+
+      .btn-regenerate:hover {
+        border-color: var(--muted-foreground);
+      }
+
+      /* Loading State */
+      .loading-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .loading-overlay.active {
+        display: flex;
+      }
+
+      .spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid rgba(99, 102, 241, 0.2);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      .loading-text {
+        color: var(--foreground);
+        font-size: 1rem;
+      }
+
+      /* API Error */
+      .api-error {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid var(--error);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-top: 1rem;
+        color: var(--error);
+        font-size: 0.875rem;
+        display: none;
+      }
+
+      .api-error.show {
+        display: block;
+      }
+
+      /* Responsive */
+      @media (max-width: 640px) {
+        .options-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .login-container {
+          padding: 2rem 1.5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Login Page -->
+      <div id="loginPage" class="login-container">
+        <div class="login-icon">🎨</div>
+        <h1 class="login-title">AI 图片生成器</h1>
+        <p class="login-subtitle">请输入访问密码以继续</p>
+        
+        <form id="loginForm">
+          <div class="form-group">
+            <label class="form-label" for="password">访问密码</label>
+            <input 
+              type="password" 
+              id="password" 
+              class="form-input" 
+              placeholder="请输入密码"
+              autocomplete="current-password"
+            />
+          </div>
+          <button type="submit" class="btn">
+            进入系统
+          </button>
+          <p id="loginError" class="error-message">密码错误，请重试</p>
+        </form>
+      </div>
+
+      <!-- Generator Page -->
+      <div id="generatorPage" class="generator-container">
+        <div class="header">
+          <h1 class="header-title">
+            <span>🎨</span>
+            图片生成器
+            <span class="header-badge">GPT-Image-2</span>
+          </h1>
+          <button class="btn-logout" onclick="logout()">退出登录</button>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">
+            <span>⚙️</span>
+            生成设置
+          </h2>
+          <div class="options-grid">
+            <div class="form-group">
+              <label class="form-label" for="aspectRatio">图片比例</label>
+              <select id="aspectRatio" class="form-select">
+                <option value="">默认 (1:1)</option>
+                <option value="1:1">1:1 (正方形)</option>
+                <option value="16:9">16:9 (宽屏)</option>
+                <option value="9:16">9:16 (竖屏)</option>
+                <option value="4:3">4:3 (标准)</option>
+                <option value="3:2">3:2 (摄影)</option>
+                <option value="2:3">2:3 (人像)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="size">像素大小</label>
+              <select id="size" class="form-select">
+                <option value="">默认 (1K)</option>
+                <option value="1k">1K</option>
+                <option value="2k">2K</option>
+                <option value="4k">4K</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">
+            <span>✏️</span>
+            图片描述
+          </h2>
+          <div class="form-group">
+            <textarea 
+              id="prompt" 
+              class="textarea" 
+              placeholder="描述你想要生成的图片内容..."
+            ></textarea>
+          </div>
+          <button id="generateBtn" class="btn" onclick="generateImage()">
+            <span>✨</span>
+            生成图片
+          </button>
+          <div id="apiError" class="api-error"></div>
+        </div>
+
+        <div id="previewSection" class="preview-section">
+          <div class="card">
+            <h2 class="card-title">
+              <span>🖼️</span>
+              生成结果
+            </h2>
+            <div class="preview-container">
+              <img id="previewImage" class="preview-image" src="" alt="生成的图片" />
+            </div>
+            <div class="preview-actions">
+              <button class="btn-download" onclick="downloadImage()">
+                📥 下载图片
+              </button>
+              <button class="btn-regenerate" onclick="generateImage()">
+                🔄 重新生成
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner"></div>
+      <p class="loading-text">正在生成图片，请稍候...</p>
+    </div>
+
+    <script>
+      // Configuration
+      const API_KEY = 'sk-4e8Jv0gxK3wzrsAue11bLijwWcPAF53VnDXrrRIjcwiO6vWL';
+      const API_URL = '/api/generate';
+      const ACCESS_PASSWORD = 'gptimage2024'; // 设置访问密码
+
+      let currentImageUrl = '';
+      let currentPrompt = '';
+
+      // DOM Elements
+      const loginPage = document.getElementById('loginPage');
+      const generatorPage = document.getElementById('generatorPage');
+      const loginForm = document.getElementById('loginForm');
+      const passwordInput = document.getElementById('password');
+      const loginError = document.getElementById('loginError');
+      const generateBtn = document.getElementById('generateBtn');
+      const previewSection = document.getElementById('previewSection');
+      const previewImage = document.getElementById('previewImage');
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      const apiError = document.getElementById('apiError');
+      const promptInput = document.getElementById('prompt');
+      const aspectRatioSelect = document.getElementById('aspectRatio');
+      const sizeSelect = document.getElementById('size');
+
+      // Login Handler
+      loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const password = passwordInput.value;
+
+        if (password === ACCESS_PASSWORD) {
+          localStorage.setItem('isAuthenticated', 'true');
+          showGeneratorPage();
+        } else {
+          loginError.classList.add('show');
+          passwordInput.value = '';
+        }
+      });
+
+      // Check authentication on page load
+      function checkAuth() {
+        const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+        if (isAuthenticated) {
+          showGeneratorPage();
+        } else {
+          showLoginPage();
+        }
+      }
+
+      function showLoginPage() {
+        loginPage.style.display = 'block';
+        generatorPage.classList.remove('active');
+        passwordInput.value = '';
+        loginError.classList.remove('show');
+      }
+
+      function showGeneratorPage() {
+        loginPage.style.display = 'none';
+        generatorPage.classList.add('active');
+      }
+
+      function logout() {
+        localStorage.removeItem('isAuthenticated');
+        showLoginPage();
+      }
+
+      // Image Generation
+      async function generateImage() {
+        const prompt = promptInput.value.trim();
+
+        if (!prompt) {
+          showApiError('请输入图片描述');
+          return;
+        }
+
+        currentPrompt = prompt;
+
+        // Build request body
+        const body = {
+          model: 'gpt-image-2',
+          prompt: prompt,
+          n: 1
+        };
+
+        // Add size if selected
+        const selectedSize = sizeSelect.value;
+        if (selectedSize) {
+          body.size = selectedSize;
+        }
+
+        // Add style if needed (based on aspect ratio)
+        const selectedRatio = aspectRatioSelect.value;
+        if (selectedRatio) {
+          body.aspect_ratio = selectedRatio;
+        }
+
+        try {
+          showLoading(true);
+          hideApiError();
+
+          const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${API_KEY}`
+            },
+            body: JSON.stringify(body)
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || `API 请求失败 (${response.status})`);
+          }
+
+          const data = await response.json();
+
+          if (data.data && data.data[0] && data.data[0].url) {
+            currentImageUrl = data.data[0].url;
+            showPreview(data.data[0].url);
+          } else if (data.data && data.data[0] && data.data[0].b64_json) {
+            // Handle base64 response
+            currentImageUrl = `data:image/png;base64,${data.data[0].b64_json}`;
+            showPreview(currentImageUrl);
+          } else {
+            throw new Error('未获取到图片数据');
+          }
+
+        } catch (error) {
+          console.error('生成图片失败:', error);
+          const errorMsg = error.message || '生成图片失败，请重试';
+          showApiError(`错误: ${errorMsg}`);
+        } finally {
+          showLoading(false);
+        }
+      }
+
+      function showPreview(imageUrl) {
+        previewImage.src = imageUrl;
+        previewSection.classList.add('active');
+        previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function showLoading(show) {
+        if (show) {
+          loadingOverlay.classList.add('active');
+          generateBtn.disabled = true;
+        } else {
+          loadingOverlay.classList.remove('active');
+          generateBtn.disabled = false;
+        }
+      }
+
+      function showApiError(message) {
+        apiError.textContent = message;
+        apiError.classList.add('show');
+      }
+
+      function hideApiError() {
+        apiError.classList.remove('show');
+      }
+
+      // Download Image
+      async function downloadImage() {
+        if (!currentImageUrl) {
+          alert('没有可下载的图片');
+          return;
+        }
+
+        try {
+          // Show loading state
+          const downloadBtn = document.querySelector('.btn-download');
+          const originalText = downloadBtn.innerHTML;
+          downloadBtn.innerHTML = '⏳ 下载中...';
+          downloadBtn.disabled = true;
+
+          // Fetch the image
+          const response = await fetch(currentImageUrl);
+          const blob = await response.blob();
+
+          // Create download link
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          
+          // Generate filename with timestamp
+          const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+          link.download = `gpt-image-${timestamp}.png`;
+          
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+
+          // Restore button state
+          setTimeout(() => {
+            downloadBtn.innerHTML = originalText;
+            downloadBtn.disabled = false;
+          }, 1000);
+
+        } catch (error) {
+          console.error('下载失败:', error);
+          alert('下载失败，请重试');
+        }
+      }
+
+      // Initialize
+      checkAuth();
+    </script>
+  </body>
+</html>

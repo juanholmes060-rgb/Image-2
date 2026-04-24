@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API 诊断工具</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0a;
+      color: #ededed;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { color: #6366f1; margin-bottom: 10px; font-size: 1.8rem; }
+    .subtitle { color: #71717a; margin-bottom: 30px; }
+    
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    h2 {
+      font-size: 1rem;
+      color: #a1a1aa;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .test-item {
+      background: #0a0a0a;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    
+    .test-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .test-name {
+      font-weight: 500;
+      color: #fff;
+    }
+    
+    .test-status {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    
+    .status-pending { background: #3a3a3a; color: #a1a1aa; }
+    .status-running { background: #2563eb; color: #fff; }
+    .status-success { background: #16a34a; color: #fff; }
+    .status-error { background: #dc2626; color: #fff; }
+    
+    .test-details {
+      font-size: 0.85rem;
+      color: #71717a;
+      background: #0a0a0a;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 10px;
+      white-space: pre-wrap;
+      font-family: 'Monaco', 'Menlo', monospace;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .btn {
+      background: #6366f1;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin: 5px;
+    }
+    
+    .btn:hover { background: #4f46e5; }
+    .btn:disabled { background: #3a3a3a; color: #71717a; cursor: not-allowed; }
+    
+    .progress {
+      height: 4px;
+      background: #2a2a2a;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 20px;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #6366f1, #8b5cf6);
+      width: 0%;
+      transition: width 0.3s;
+    }
+    
+    .result-summary {
+      background: #0a0a0a;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    
+    .summary-title { font-weight: 600; margin-bottom: 10px; }
+    
+    .summary-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #2a2a2a;
+    }
+    
+    .summary-item:last-child { border-bottom: none; }
+    
+    .error-box {
+      background: rgba(220, 38, 38, 0.1);
+      border: 1px solid #dc2626;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    
+    .error-title { color: #dc2626; font-weight: 600; margin-bottom: 10px; }
+    
+    code {
+      background: #2a2a2a;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.9em;
+    }
+    
+    pre {
+      background: #0a0a0a;
+      padding: 10px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 API 诊断工具</h1>
+    <p class="subtitle">自动检测 API 配置问题</p>
+    
+    <div class="card">
+      <h2>📋 测试配置</h2>
+      <div class="test-item">
+        <div class="test-header">
+          <span class="test-name">API 端点</span>
+        </div>
+        <code id="apiEndpoint">/api/generate</code>
+      </div>
+      <div class="test-item">
+        <div class="test-header">
+          <span class="test-name">目标 URL</span>
+        </div>
+        <code id="targetUrl">https://api.apimart.io/v1/images/generations</code>
+      </div>
+      <div class="test-item">
+        <div class="test-header">
+          <span class="test-name">测试 Prompt</span>
+        </div>
+        <code id="testPrompt">一只可爱的小狗</code>
+      </div>
+    </div>
+    
+    <button id="runTests" class="btn" onclick="runAllTests()">🚀 开始诊断</button>
+    
+    <div class="progress">
+      <div id="progressBar" class="progress-bar"></div>
+    </div>
+    
+    <div id="testResults"></div>
+    
+    <div id="summarySection" style="display: none;">
+      <div class="result-summary">
+        <div class="summary-title">📊 测试结果汇总</div>
+        <div id="summaryContent"></div>
+      </div>
+    </div>
+    
+    <div id="errorSection" style="display: none;">
+      <div class="error-box">
+        <div class="error-title">❌ 发现问题</div>
+        <div id="errorDetails"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = '/api/generate';
+    const TEST_PROMPTS = ['一只可爱的小狗', 'a beautiful sunset', 'test'];
+    
+    let testResults = [];
+    let currentTest = 0;
+
+    async function runAllTests() {
+      const btn = document.getElementById('runTests');
+      btn.disabled = true;
+      btn.textContent = '⏳ 诊断中...';
+      
+      testResults = [];
+      currentTest = 0;
+      document.getElementById('testResults').innerHTML = '';
+      document.getElementById('summarySection').style.display = 'none';
+      document.getElementById('errorSection').style.display = 'none';
+      
+      // Run tests sequentially
+      for (let i = 0; i < TEST_PROMPTS.length; i++) {
+        await runTest(i, TEST_PROMPTS[i]);
+      }
+      
+      // Final summary
+      showSummary();
+      
+      btn.disabled = false;
+      btn.textContent = '🚀 重新诊断';
+    }
+
+    async function runTest(index, prompt) {
+      const resultsDiv = document.getElementById('testResults');
+      const progressBar = document.getElementById('progressBar');
+      
+      currentTest = index;
+      progressBar.style.width = `${((index + 1) / TEST_PROMPTS.length) * 100}%`;
+      
+      const testId = `test-${index}`;
+      const testHtml = `
+        <div class="test-item" id="${testId}">
+          <div class="test-header">
+            <span class="test-name">测试 ${index + 1}: "${prompt}"</span>
+            <span class="test-status status-running">运行中</span>
+          </div>
+          <div class="test-details" id="${testId}-details">正在发送请求...</div>
+        </div>
+      `;
+      resultsDiv.insertAdjacentHTML('beforeend', testHtml);
+      
+      const detailsEl = document.getElementById(`${testId}-details`);
+      const statusEl = document.getElementById(testId).querySelector('.test-status');
+      const startTime = Date.now();
+      
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-image-2',
+            prompt: prompt,
+            n: 1
+          })
+        });
+        
+        const duration = Date.now() - startTime;
+        const responseText = await response.text();
+        let responseData;
+        try {
+          responseData = JSON.parse(responseText);
+        } catch (e) {
+          responseData = responseText;
+        }
+        
+        const result = {
+          prompt,
+          status: response.status,
+          statusText: response.statusText,
+          duration,
+          response: responseData
+        };
+        
+        testResults.push(result);
+        
+        const statusClass = response.ok ? 'status-success' : 'status-error';
+        const statusText = response.ok ? '成功' : `失败 (${response.status})`;
+        
+        statusEl.className = `test-status ${statusClass}`;
+        statusEl.textContent = statusText;
+        
+        let detailsText = `状态: ${response.status} ${response.statusText}\n`;
+        detailsText += `耗时: ${duration}ms\n\n`;
+        detailsText += `响应:\n${JSON.stringify(responseData, null, 2)}`;
+        
+        detailsEl.textContent = detailsText;
+        
+      } catch (error) {
+        const result = {
+          prompt,
+          status: 0,
+          statusText: 'Network Error',
+          duration: Date.now() - startTime,
+          error: error.message
+        };
+        
+        testResults.push(result);
+        
+        statusEl.className = 'test-status status-error';
+        statusEl.textContent = '网络错误';
+        
+        detailsEl.textContent = `错误: ${error.message}\n\n这可能表示:\n1. API 端点不可访问\n2. CORS 限制\n3. 网络问题`;
+      }
+    }
+
+    function showSummary() {
+      const summarySection = document.getElementById('summarySection');
+      const summaryContent = document.getElementById('summaryContent');
+      const errorSection = document.getElementById('errorSection');
+      const errorDetails = document.getElementById('errorDetails');
+      
+      const successCount = testResults.filter(r => r.status >= 200 && r.status < 300).length;
+      const errorCount = testResults.length - successCount;
+      
+      let html = `
+        <div class="summary-item">
+          <span>总测试数</span>
+          <span>${testResults.length}</span>
+        </div>
+        <div class="summary-item">
+          <span>成功</span>
+          <span style="color: #16a34a">${successCount}</span>
+        </div>
+        <div class="summary-item">
+          <span>失败</span>
+          <span style="color: #dc2626">${errorCount}</span>
+        </div>
+      `;
+      
+      if (testResults.length > 0) {
+        const avgDuration = Math.round(testResults.reduce((sum, r) => sum + r.duration, 0) / testResults.length);
+        html += `
+          <div class="summary-item">
+            <span>平均耗时</span>
+            <span>${avgDuration}ms</span>
+          </div>
+        `;
+      }
+      
+      summaryContent.innerHTML = html;
+      summarySection.style.display = 'block';
+      
+      // Check for specific errors
+      const errors = testResults.filter(r => r.status !== 200);
+      
+      if (errors.length > 0) {
+        const firstError = errors[0];
+        let errorHtml = `<p><strong>错误类型:</strong> ${firstError.status} ${firstError.statusText}</p>`;
+        
+        if (firstError.response && firstError.response.error) {
+          errorHtml += `<p><strong>错误消息:</strong> ${firstError.response.error}</p>`;
+        }
+        
+        if (firstError.response && firstError.response.message) {
+          errorHtml += `<p><strong>详细信息:</strong> ${firstError.response.message}</p>`;
+        }
+        
+        // Provide specific suggestions
+        errorHtml += '<p style="margin-top: 15px;"><strong>建议检查:</strong></p><ul style="margin-top: 10px;">';
+        
+        if (firstError.status === 401) {
+          errorHtml += '<li>API 密钥无效或已过期</li>';
+          errorHtml += '<li>检查 Apimart 平台上的密钥状态</li>';
+        } else if (firstError.status === 404) {
+          errorHtml += '<li>API 端点地址不正确</li>';
+          errorHtml += '<li>确认 Apimart 的正确 API 路径</li>';
+        } else if (firstError.status === 500) {
+          errorHtml += '<li>Apimart 服务器内部错误</li>';
+          errorHtml += '<li>可能是 API 端点或参数配置问题</li>';
+          errorHtml += '<li>建议查看 Apimart 官方文档确认正确的 API 格式</li>';
+        } else if (firstError.status === 0) {
+          errorHtml += '<li>无法连接到 API 服务器</li>';
+          errorHtml += '<li>检查 API 地址是否正确</li>';
+          errorHtml += '<li>检查网络连接</li>';
+        }
+        
+        errorHtml += '</ul>';
+        
+        if (firstError.response) {
+          errorHtml += `<pre style="margin-top: 15px; font-size: 0.75rem;">${JSON.stringify(firstError.response, null, 2)}</pre>`;
+        }
+        
+        errorDetails.innerHTML = errorHtml;
+        errorSection.style.display = 'block';
+      }
+    }
+
+    // Auto-run on page load
+    window.onload = () => {
+      // Update configuration display
+      document.getElementById('apiEndpoint').textContent = window.location.origin + API_URL;
+    };
+  </script>
+</body>
+</html>
