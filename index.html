@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>公司 GPT-Image-2 工作站</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: system-ui; max-width: 500px; margin: 50px auto; padding: 20px; line-height: 1.6; }
+        input, textarea, button { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+        button { background: #000; color: #fff; cursor: pointer; font-weight: bold; }
+        img { width: 100%; margin-top: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <h2>🎨 GPT-Image-2 视觉站</h2>
+    <input type="password" id="pw" placeholder="输入访问密码 (661500)">
+    <textarea id="prompt" placeholder="描述你想要的画面，例如：一个极简风的公司 Logo..."></textarea>
+    <button onclick="draw()">开始生图</button>
+    <div id="status"></div>
+    <img id="result" style="display:none">
+
+    <script>
+        async function draw() {
+            const btn = document.querySelector('button');
+            const status = document.getElementById('status');
+            const img = document.getElementById('result');
+            
+            btn.disabled = true;
+            status.innerText = "AI 正在构图，请稍后...";
+            img.style.display = "none";
+
+            const res = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    prompt: document.getElementById('prompt').value,
+                    pass: document.getElementById('pw').value 
+                })
+            });
+
+            const data = await res.json();
+            btn.disabled = false;
+
+            if (data.url) {
+                img.src = data.url;
+                img.style.display = "block";
+                status.innerText = "生成成功！";
+            } else {
+                status.innerText = "错误：" + (data.error || "生成失败");
+            }
+        }
+    </script>
+</body>
+</html>

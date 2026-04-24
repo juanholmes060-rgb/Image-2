@@ -1,8 +1,9 @@
 export default async function handler(req, res) {
-  // 简单的访问码校验（保护你的额度）
-  const { prompt, accessCode } = req.body;
-  if (accessCode !== process.env.ACCESS_CODE) {
-    return res.status(401).json({ error: '访问密码错误' });
+  const { prompt, pass } = req.body;
+
+  // 验证密码
+  if (pass !== process.env.ACCESS_CODE) {
+    return res.status(401).json({ error: '密码错误' });
   }
 
   try {
@@ -13,17 +14,21 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "gpt-image-2", // 使用你要求的 2026 最新模型
+        model: "gpt-image-2", 
         prompt: prompt,
         n: 1,
-        size: "1024x1024", // GPT-Image-2 支持最高 4K，这里先设标准版
+        size: "1024x1024",
         quality: "hd"
       })
     });
 
-    const data = await response.json();
-    res.status(200).json(data);
-  } catch (error) {
-    res.status(500).json({ error: '生成失败，请检查配置' });
+    const result = await response.json();
+    if (result.data && result.data[0]) {
+      res.status(200).json({ url: result.data[0].url });
+    } else {
+      res.status(500).json({ error: result.error?.message || 'OpenAI 接口报错' });
+    }
+  } catch (e) {
+    res.status(500).json({ error: '服务器连接超时' });
   }
 }
