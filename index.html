@@ -3,49 +3,91 @@
 <head>
     <title>公司 GPT-Image-2 工作站</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: system-ui; max-width: 500px; margin: 50px auto; padding: 20px; line-height: 1.6; }
-        input, textarea, button { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
-        button { background: #000; color: #fff; cursor: pointer; font-weight: bold; }
-        img { width: 100%; margin-top: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        body { font-family: system-ui; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: #fff; padding: 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 100%; max-width: 400px; text-align: center; }
+        input, textarea, button { width: 100%; padding: 14px; margin: 12px 0; border: 1px solid #e0e0e0; border-radius: 10px; box-sizing: border-box; font-size: 16px; }
+        button { background: #000; color: #fff; cursor: pointer; border: none; transition: 0.3s; font-weight: bold; }
+        button:hover { background: #333; }
+        .hidden { display: none; }
+        img { width: 100%; margin-top: 20px; border-radius: 12px; }
+        #status { font-size: 14px; color: #666; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h2>🎨 GPT-Image-2 视觉站</h2>
-    <input type="password" id="pw" placeholder="输入访问密码 (661500)">
-    <textarea id="prompt" placeholder="描述你想要的画面，例如：一个极简风的公司 Logo..."></textarea>
-    <button onclick="draw()">开始生图</button>
-    <div id="status"></div>
-    <img id="result" style="display:none">
+
+    <div id="login-page" class="card">
+        <h2 style="margin-bottom: 20px;">🎨 视觉站登录</h2>
+        <input type="password" id="pw" placeholder="请输入 6 位访问密码">
+        <button onclick="checkLogin()">确认进入</button>
+        <p id="login-msg" style="color: red; font-size: 14px;"></p>
+    </div>
+
+    <div id="app-page" class="card hidden" style="max-width: 500px;">
+        <h2 style="margin-top:0">🖼️ GPT-Image-2 创作中枢</h2>
+        <textarea id="prompt" placeholder="描述你想要的画面..."></textarea>
+        <button id="draw-btn" onclick="draw()">开始生成</button>
+        <div id="status"></div>
+        <img id="result" style="display:none">
+        <button onclick="logout()" style="background:none; color:#999; font-size:12px; margin-top:20px;">退出登录</button>
+    </div>
 
     <script>
+        const CORRECT_CODE = "661500"; // 你的预设密码
+
+        // 登录逻辑
+        function checkLogin() {
+            const input = document.getElementById('pw').value;
+            if (input === CORRECT_CODE) {
+                document.getElementById('login-page').classList.add('hidden');
+                document.getElementById('app-page').classList.remove('hidden');
+            } else {
+                document.getElementById('login-msg').innerText = "密码错误，请重新输入";
+            }
+        }
+
+        // 登出逻辑
+        function logout() {
+            location.reload();
+        }
+
+        // 生图逻辑
         async function draw() {
-            const btn = document.querySelector('button');
+            const btn = document.getElementById('draw-btn');
             const status = document.getElementById('status');
             const img = document.getElementById('result');
+            const promptValue = document.getElementById('prompt').value;
             
+            if(!promptValue) return alert("请输入描述词");
+
             btn.disabled = true;
-            status.innerText = "AI 正在构图，请稍后...";
+            status.innerText = "AI 正在绘制 2026 高清图像...";
             img.style.display = "none";
 
-            const res = await fetch('/api/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    prompt: document.getElementById('prompt').value,
-                    pass: document.getElementById('pw').value 
-                })
-            });
+            try {
+                const res = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        prompt: promptValue,
+                        pass: CORRECT_CODE // 这里的密码会自动传给后端验证
+                    })
+                });
 
-            const data = await res.json();
-            btn.disabled = false;
+                const data = await res.json();
+                btn.disabled = false;
 
-            if (data.url) {
-                img.src = data.url;
-                img.style.display = "block";
-                status.innerText = "生成成功！";
-            } else {
-                status.innerText = "错误：" + (data.error || "生成失败");
+                if (data.url) {
+                    img.src = data.url;
+                    img.style.display = "block";
+                    status.innerText = "生成成功！";
+                } else {
+                    status.innerText = "错误：" + (data.error || "生成失败");
+                }
+            } catch (e) {
+                btn.disabled = false;
+                status.innerText = "连接超时，请重试";
             }
         }
     </script>
