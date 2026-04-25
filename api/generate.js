@@ -10,38 +10,35 @@ export default async function handler(req, res) {
   const API_KEY = process.env.OPENAI_API_KEY;
 
   try {
-    let fetchUrl, fetchOptions;
+    let finalUrl = "";
+    let options = {
+      headers: { 'Authorization': `Bearer ${API_KEY}` }
+    };
 
     if (taskId) {
-      // --- 关键修改：去掉路径中的 images/generations ---
-      fetchUrl = `https://api.apimart.ai/v1/tasks/${taskId}`;
-      fetchOptions = {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${API_KEY}` }
-      };
+      // 强制使用任务查询专用域名和路径
+      finalUrl = `https://api.apimart.ai/v1/tasks/${taskId}`;
+      options.method = 'GET';
     } else {
-      fetchUrl = "https://api.apimart.ai/v1/images/generations";
-      fetchOptions = {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: "gpt-image-2",
-          prompt: prompt,
-          n: 1,
-          size: "1024x1024"
-        })
-      };
+      // 仅在创建时使用 generations 路径
+      finalUrl = "https://api.apimart.ai/v1/images/generations";
+      options.method = 'POST';
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify({
+        model: "gpt-image-2",
+        prompt: prompt,
+        n: 1,
+        size: "1024x1024"
+      });
     }
 
-    const response = await fetch(fetchUrl, fetchOptions);
+    // 这一行会在 Vercel Logs 输出，请务必观察它是否去掉了 images/generations
+    console.log(`[REAL_REQUEST_URL]: ${finalUrl}`);
+
+    const response = await fetch(finalUrl, options);
     const result = await response.json();
-    
-    // 把原始返回发给前端，方便调试
     res.status(200).json(result);
   } catch (e) {
-    res.status(500).json({ error: "服务器错误", details: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
