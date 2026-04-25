@@ -8,39 +8,21 @@
         :root { --primary: #007aff; --bg: #f5f5f7; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; margin: 0; }
         .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 100%; max-width: 440px; }
-        
         #login-screen { text-align: center; padding: 40px 0; }
         #main-app { display: none; }
-
         h2 { margin-top: 0; font-size: 22px; color: #1d1d1f; text-align: center; }
         .group { margin-bottom: 15px; }
         label { display: block; font-size: 13px; color: #86868b; margin-bottom: 5px; margin-left: 5px; font-weight: 500; }
-        
-        input, textarea, select { 
-            width: 100%; padding: 12px; border: 1px solid #d2d2d7; border-radius: 12px; 
-            box-sizing: border-box; font-size: 15px; outline: none; transition: 0.2s;
-        }
-        input:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(0,122,255,0.1); }
-
+        input, textarea, select { width: 100%; padding: 12px; border: 1px solid #d2d2d7; border-radius: 12px; box-sizing: border-box; font-size: 15px; outline: none; transition: 0.2s; }
         .grid-select { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        
-        button { 
-            width: 100%; padding: 15px; background: #000; color: #fff; border: none; 
-            border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 10px; transition: 0.3s;
-        }
-        button:active { transform: scale(0.98); }
+        button { width: 100%; padding: 15px; background: #000; color: #fff; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 10px; transition: 0.3s; }
         button:disabled { background: #d2d2d7; cursor: not-allowed; }
-
-        /* 参考图样式 */
-        .ref-box { border: 2px dashed #d2d2d7; border-radius: 12px; padding: 10px; text-align: center; cursor: pointer; transition: 0.2s; position: relative; }
-        .ref-box:hover { border-color: var(--primary); background: #fbfbfb; }
+        .ref-box { border: 2px dashed #d2d2d7; border-radius: 12px; padding: 10px; text-align: center; cursor: pointer; position: relative; }
         #ref-preview { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; display: none; margin: 0 auto; }
         .ref-hint { font-size: 13px; color: #86868b; }
         .clear-ref { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.5); color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 20px; display: none; }
-
-        #res-img { width: 100%; border-radius: 12px; display: none; margin-top: 20px; border: 1px solid #eee; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        #res-img { width: 100%; border-radius: 12px; display: none; margin-top: 20px; border: 1px solid #eee; }
         .status { text-align: center; margin: 15px 0; font-size: 14px; color: #666; min-height: 20px; }
-        
         #download-box { display: none; margin-top: 15px; text-align: center; }
         .save-btn { background: #10b981; margin-top: 0; }
     </style>
@@ -56,58 +38,32 @@
 
     <div id="main-app">
         <h2>🎨 视觉创作中心</h2>
-        
         <div class="group">
             <label>画面描述</label>
             <textarea id="prompt" rows="3" placeholder="写下你的创意..."></textarea>
         </div>
-
         <div class="group">
             <label>参考图 (可选)</label>
             <div class="ref-box" onclick="document.getElementById('ref-file').click()">
-                <div id="ref-placeholder">
-                    <span class="ref-hint">点击上传参考图</span>
-                </div>
+                <div id="ref-placeholder"><span class="ref-hint">点击上传 (会自动压缩)</span></div>
                 <img id="ref-preview">
                 <div id="clear-ref" class="clear-ref" onclick="clearRef(event)">✕</div>
-                <input type="file" id="ref-file" hidden accept="image/*" onchange="handleFile(this)">
+                <input type="file" id="ref-file" hidden accept="image/*" onchange="processFile(this)">
             </div>
         </div>
-
         <div class="grid-select">
-            <div class="group">
-                <label>比例</label>
-                <select id="ratio">
-                    <option value="1:1">1:1 正方形</option>
-                    <option value="9:16">9:16 手机</option>
-                    <option value="16:9">16:9 宽屏</option>
-                    <option value="4:3">4:3 标准</option>
-                </select>
-            </div>
-            <div class="group">
-                <label>清晰度</label>
-                <select id="pixel">
-                    <option value="1024">1K 标准</option>
-                    <option value="2048">2K 高清</option>
-                </select>
-            </div>
+            <div class="group"><label>比例</label><select id="ratio"><option value="1:1">1:1</option><option value="9:16">9:16</option><option value="16:9">16:9</option><option value="4:3">4:3</option></select></div>
+            <div class="group"><label>清晰度</label><select id="pixel"><option value="1024">1K</option><option value="2048">2K</option></select></div>
         </div>
-
         <button id="gen-btn" onclick="handleGenerate()">开始生成</button>
-        
         <div id="status" class="status">就绪</div>
         <img id="res-img">
-
-        <div id="download-box">
-            <button class="save-btn" onclick="saveImage()">💾 一键保存到手机/电脑</button>
-        </div>
+        <div id="download-box"><button class="save-btn" onclick="saveImage()">💾 保存图片</button></div>
     </div>
 </div>
 
 <script>
-    let globalPass = "";
-    let currentImgUrl = "";
-    let refBase64 = "";
+    let globalPass = "", currentImgUrl = "", refBase64 = "";
 
     function checkLogin() {
         const pw = document.getElementById('access-pw').value;
@@ -118,24 +74,42 @@
         } else alert("密码错误");
     }
 
-    // 处理参考图上传
-    function handleFile(input) {
+    // --- 核心：图片压缩处理 ---
+    function processFile(input) {
         const file = input.files[0];
         if (!file) return;
+
         const reader = new FileReader();
         reader.onload = (e) => {
-            refBase64 = e.target.result;
-            document.getElementById('ref-preview').src = refBase64;
-            document.getElementById('ref-preview').style.display = "block";
-            document.getElementById('ref-placeholder').style.display = "none";
-            document.getElementById('clear-ref').style.display = "block";
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width, height = img.height;
+                // 限制最大长边为 800px，既能保留参考特征，又能极大地减小体积
+                const maxSide = 800;
+                if (width > height) {
+                    if (width > maxSide) { height = Math.round(height * maxSide / width); width = maxSide; }
+                } else {
+                    if (height > maxSide) { width = Math.round(width * maxSide / height); height = maxSide; }
+                }
+                canvas.width = width; canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                // 压缩质量设为 0.7
+                refBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                
+                document.getElementById('ref-preview').src = refBase64;
+                document.getElementById('ref-preview').style.display = "block";
+                document.getElementById('ref-placeholder').style.display = "none";
+                document.getElementById('clear-ref').style.display = "block";
+            };
+            img.src = e.target.result;
         };
         reader.readAsDataURL(file);
     }
 
     function clearRef(e) {
-        e.stopPropagation();
-        refBase64 = "";
+        e.stopPropagation(); refBase64 = "";
         document.getElementById('ref-file').value = "";
         document.getElementById('ref-preview').style.display = "none";
         document.getElementById('ref-placeholder').style.display = "block";
@@ -143,12 +117,8 @@
     }
 
     async function handleGenerate() {
-        const prompt = document.getElementById('prompt').value;
-        const ratio = document.getElementById('ratio').value;
-        const pixel = document.getElementById('pixel').value;
-        const status = document.getElementById('status');
-        const btn = document.getElementById('gen-btn');
-
+        const prompt = document.getElementById('prompt').value, ratio = document.getElementById('ratio').value, pixel = document.getElementById('pixel').value;
+        const status = document.getElementById('status'), btn = document.getElementById('gen-btn');
         if(!prompt) return alert("写点什么吧");
 
         let size = "1024x1024";
@@ -166,32 +136,21 @@
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    prompt, 
-                    pass: globalPass, 
-                    size: size,
-                    ref_image: refBase64 // 发送参考图
-                })
+                body: JSON.stringify({ prompt, pass: globalPass, size, ref_image: refBase64 })
             });
             const data = await res.json();
-            const tid = data.task_id || (data.data && data.data[0] && data.data[0].task_id);
-
-            if(tid) startPolling(tid);
-            else {
+            const tid = data.task_id || (data.data?.[0]?.task_id);
+            if(tid) startPolling(tid); else {
                 const u = findUrl(data);
-                if(u) renderResult(u); else throw new Error("启动失败");
+                if(u) renderResult(u); else throw new Error(data.error?.message || "启动失败");
             }
-        } catch(e) {
-            status.innerText = "❌ 错误: " + e.message;
-            btn.disabled = false;
-        }
+        } catch(e) { status.innerText = "❌ 错误: " + e.message; btn.disabled = false; }
     }
 
     function startPolling(tid) {
         let sec = 0;
         const timer = setInterval(async () => {
-            sec += 3;
-            document.getElementById('status').innerText = `⏳ 正在努力渲染 (${sec}s)...`;
+            sec += 3; document.getElementById('status').innerText = `⏳ 正在努力渲染 (${sec}s)...`;
             try {
                 const res = await fetch('/api/generate', {
                     method: 'POST',
@@ -209,7 +168,7 @@
         if(!o) return null;
         if(typeof o === 'string' && o.startsWith('http')) return o;
         if(o.url) return o.url;
-        if(o.data && o.data[0] && o.data[0].url) return o.data[0].url;
+        if(o.data?.[0]?.url) return o.data[0].url;
         for(let k in o) { if(typeof o[k] === 'object') { const f = findUrl(o[k]); if(f) return f; } }
         return null;
     }
@@ -217,28 +176,21 @@
     function renderResult(url) {
         currentImgUrl = url;
         const img = document.getElementById('res-img');
-        img.src = url;
-        img.style.display = "block";
+        img.src = url; img.style.display = "block";
         document.getElementById('download-box').style.display = "block";
         document.getElementById('status').innerText = "✅ 渲染完成！";
         document.getElementById('gen-btn').disabled = false;
     }
 
     async function saveImage() {
-        const status = document.getElementById('status');
-        status.innerText = "💾 正在准备下载...";
         try {
             const res = await fetch(currentImgUrl);
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = `AI_Work_${Date.now()}.png`;
+            a.href = url; a.download = `AI_Work_${Date.now()}.png`;
             a.click();
-            status.innerText = "✅ 下载已开始";
-        } catch(e) {
-            window.open(currentImgUrl, '_blank');
-        }
+        } catch(e) { window.open(currentImgUrl, '_blank'); }
     }
 </script>
 </body>
