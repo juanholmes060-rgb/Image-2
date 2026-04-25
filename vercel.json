@@ -8,6 +8,10 @@
     {
       "src": "/api/ping",
       "dest": "/api/ping.js"
+    },
+    {
+      "src": "/check/?",
+      "dest": "/check/index.html"
     }
   ]
 }
