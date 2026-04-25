@@ -2,43 +2,42 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>视觉创作中心</title>
+    <title>GPT-Image-2 视觉中心</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 40px; }
-        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; }
-        input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        body { font-family: sans-serif; background: #f7f7f9; display: flex; justify-content: center; padding-top: 50px; }
+        .card { background: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); width: 400px; }
+        input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #000; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
         button:disabled { background: #ccc; }
-        #res-img { width: 100%; margin-top: 20px; border-radius: 10px; display: none; border: 1px solid #eee; }
-        .status { margin-top: 15px; text-align: center; color: #666; font-size: 14px; min-height: 20px; }
+        #res-img { width: 100%; margin-top: 20px; border-radius: 12px; display: none; }
+        .status { margin-top: 15px; text-align: center; font-size: 13px; color: #888; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h2 style="text-align:center">🎨 视觉创作中心</h2>
-    <input type="password" id="pw" placeholder="输入访问密码 (661500)">
-    <textarea id="prompt" rows="3" placeholder="描述你想要生成的画面..."></textarea>
-    <button id="btn" onclick="submit()">开始生成</button>
+    <input type="password" id="pw" placeholder="访问密码">
+    <textarea id="pt" rows="3" placeholder="输入绘画描述..."></textarea>
+    <button id="btn" onclick="run()">开始生成</button>
     <div id="st" class="status"></div>
-    <img id="res-img" alt="生成的图像">
+    <img id="res-img">
 </div>
 
 <script>
-    let pollInterval = null;
+    let timer = null;
 
-    async function submit() {
-        const prompt = document.getElementById('prompt').value;
+    async function run() {
+        const prompt = document.getElementById('pt').value;
         const pw = document.getElementById('pw').value;
         const st = document.getElementById('st');
         const btn = document.getElementById('btn');
-        const img = document.getElementById('res-img');
-
-        if (!prompt || !pw) return alert("请完整填写");
-
+        
+        if(!prompt || !pw) return alert("请填写完整");
+        
         btn.disabled = true;
-        img.style.display = "none";
-        st.innerText = "🚀 任务启动中...";
+        st.innerText = "🚀 正在提交任务...";
+        document.getElementById('res-img').style.display = "none";
 
         try {
             const res = await fetch('/api/generate', {
@@ -48,29 +47,30 @@
             });
             const data = await res.json();
 
-            // 提取 Task ID
-            const tid = data.task_id || data.data?.[0]?.task_id;
+            // 提取任务 ID (支持多种结构)
+            const tid = data.task_id || (data.data && data.data[0] && data.data[0].task_id);
 
             if (tid) {
-                startPolling(tid, pw);
-            } else if (data.url || data.data?.[0]?.url) {
-                finish(data.url || data.data?.[0]?.url);
+                poll(tid, pw);
             } else {
-                throw new Error(data.error || "未获取到任务ID");
+                // 尝试直接找 URL
+                const quickUrl = findUrl(data);
+                if (quickUrl) show(quickUrl);
+                else throw new Error("未获取到任务ID或图片链接");
             }
         } catch (e) {
-            st.innerText = "❌ 启动失败: " + e.message;
+            st.innerText = "❌ 失败: " + e.message;
             btn.disabled = false;
         }
     }
 
-    function startPolling(tid, pw) {
+    async function poll(tid, pw) {
         const st = document.getElementById('st');
-        let count = 0;
+        let sec = 0;
 
-        pollInterval = setInterval(async () => {
-            count += 3;
-            st.innerText = `⏳ AI 绘图中 (已等待 ${count}s)...`;
+        timer = setInterval(async () => {
+            sec += 3;
+            st.innerText = `⏳ 绘图中 (${sec}s)...`;
 
             try {
                 const res = await fetch('/api/generate', {
@@ -80,43 +80,51 @@
                 });
                 const data = await res.json();
 
-                // 尝试各种可能的图片路径
-                let imgUrl = null;
-                if (data.url) imgUrl = data.url;
-                else if (data.data?.[0]?.url) imgUrl = data.data[0].url;
-                else if (data.images?.[0]) imgUrl = data.images[0];
-
-                if (imgUrl) {
-                    clearInterval(pollInterval);
-                    finish(imgUrl);
+                const finalUrl = findUrl(data);
+                if (finalUrl) {
+                    clearInterval(timer);
+                    show(finalUrl);
                 }
-                
+
                 if (data.status === 'failed') {
-                    clearInterval(pollInterval);
+                    clearInterval(timer);
                     st.innerText = "❌ 生成失败";
                     document.getElementById('btn').disabled = false;
                 }
-            } catch (e) {
-                console.warn("查询跳过一次...");
-            }
+            } catch (e) {}
 
-            if (count > 150) {
-                clearInterval(pollInterval);
-                st.innerText = "❌ 等待超时，请刷新页面";
+            if (sec > 120) {
+                clearInterval(timer);
+                st.innerText = "❌ 超时，请刷新页面";
                 document.getElementById('btn').disabled = false;
             }
         }, 3000);
     }
 
-    function finish(url) {
+    // 暴力搜索 JSON 对象中的图片链接
+    function findUrl(obj) {
+        if (!obj) return null;
+        // 常见的几种存放路径
+        if (typeof obj.url === 'string') return obj.url;
+        if (obj.data && obj.data[0] && obj.data[0].url) return obj.data[0].url;
+        if (obj.images && obj.images[0]) return obj.images[0];
+        // 递归深层查找
+        for (let key in obj) {
+            if (typeof obj[key] === 'object') {
+                const found = findUrl(obj[key]);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+
+    function show(url) {
         const img = document.getElementById('res-img');
-        const st = document.getElementById('st');
         img.src = url;
         img.style.display = "block";
-        st.innerText = "✅ 生成成功！";
+        document.getElementById('st').innerText = "✅ 生成成功！";
         document.getElementById('btn').disabled = false;
     }
 </script>
-
 </body>
 </html>
