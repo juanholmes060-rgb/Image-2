@@ -3,105 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>视觉创作中心 - 增强版</title>
+    <title>GPT-Image-2 创作中心</title>
     <style>
-        :root { --primary: #000; --bg: #f8f9fa; }
-        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; color: #333; }
-        .card { background: #fff; padding: 30px; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 100%; max-width: 480px; }
-        h2 { margin: 0 0 20px 0; font-size: 22px; display: flex; align-items: center; gap: 10px; }
-        input, textarea { width: 100%; padding: 14px; border: 1px solid #e0e0e0; border-radius: 12px; margin-bottom: 12px; box-sizing: border-box; font-size: 16px; transition: 0.3s; }
-        input:focus, textarea:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(0,0,0,0.05); }
-        button { width: 100%; padding: 15px; background: var(--primary); color: #fff; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; transition: 0.3s; font-size: 16px; }
-        button:hover { background: #222; transform: translateY(-1px); }
-        button:disabled { background: #ccc; transform: none; cursor: not-allowed; }
-        .result-area { margin-top: 25px; display: none; text-align: center; border-top: 1px solid #eee; padding-top: 20px; }
-        #res-img { width: 100%; border-radius: 16px; margin-bottom: 15px; border: 1px solid #eee; }
-        .status { font-size: 14px; color: #666; margin: 15px 0; min-height: 20px; }
-        .error-box { background: #fff5f5; color: #e53e3e; padding: 12px; border-radius: 10px; font-size: 13px; margin-top: 15px; display: none; border: 1px solid #fed7d7; }
-        .download-btn { background: #10b981; }
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 40px; }
+        .container { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        h2 { text-align: center; margin-bottom: 20px; font-size: 20px; }
+        input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 14px; }
+        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #res-img { width: 100%; margin-top: 20px; border-radius: 12px; display: none; border: 1px solid #eee; }
+        .status { margin-top: 15px; font-size: 13px; color: #666; text-align: center; min-height: 20px; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h2>🖼️ 视觉创作中心</h2>
-    
-    <input type="password" id="access-pw" placeholder="访问密码 (661500)">
-    <textarea id="prompt-input" rows="4" placeholder="描述你想要生成的画面内容..."></textarea>
-    
-    <button id="main-btn" onclick="handleSubmit()">开始生成</button>
-    
+<div class="container">
+    <h2>🎨 创作中心</h2>
+    <input type="password" id="access-pw" placeholder="输入访问密码 (661500)">
+    <textarea id="prompt-input" rows="3" placeholder="例如：一只在宇宙中行走的猫..."></textarea>
+    <button id="main-btn" onclick="handleGenerate()">开始生成</button>
     <div id="status-text" class="status"></div>
-    
-    <div id="result-area" class="result-area">
-        <img id="res-img" src="" alt="生成的AI图像">
-        <button class="download-btn" onclick="saveImage()">下载原图到本地</button>
-    </div>
-
-    <div id="error-box" class="error-box"></div>
+    <img id="res-img" alt="AI Generated">
 </div>
 
 <script>
-    const PASS_CODE = "661500";
-    let imgUrl = "";
+    let pollTimer = null;
 
-    async function handleSubmit() {
+    async function handleGenerate() {
         const prompt = document.getElementById('prompt-input').value;
         const pw = document.getElementById('access-pw').value;
-        const btn = document.getElementById('main-btn');
         const status = document.getElementById('status-text');
-        const errBox = document.getElementById('error-box');
-        const resArea = document.getElementById('result-area');
+        const btn = document.getElementById('main-btn');
 
-        if (!prompt || !pw) return alert("请填写完整内容和密码");
-        if (pw !== PASS_CODE) return alert("密码错误");
+        if (!prompt || !pw) return alert("请完整填写内容");
 
-        // UI 初始化
         btn.disabled = true;
-        errBox.style.display = "none";
-        resArea.style.display = "none";
-        status.innerText = "🚀 任务正在提交至 API Mart...";
+        status.innerText = "🚀 正在提交任务...";
+        document.getElementById('res-img').style.display = "none";
 
         try {
-            // 第一步：创建任务
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt, pass: pw })
             });
-            const data = await res.json();
+            const result = await res.json();
 
-            // 第二步：处理返回（任务 ID 或直接 URL）
-            if (data.data && data.data[0]) {
-                const result = data.data[0];
-                if (result.url) {
-                    displayResult(result.url);
-                } else if (result.task_id) {
-                    pollImageStatus(result.task_id);
-                } else {
-                    throw new Error("API 返回了无法识别的数据结构");
-                }
+            // 检查是否返回了任务 ID
+            const taskId = result.data?.[0]?.task_id || result.task_id;
+
+            if (taskId) {
+                startPolling(taskId, pw);
+            } else if (result.data?.[0]?.url) {
+                showImage(result.data[0].url);
             } else {
-                throw new Error(data.error || "任务启动失败，请检查 API 额度");
+                throw new Error(result.error || "接口未返回有效任务 ID");
             }
         } catch (e) {
+            status.innerText = "❌ 启动失败: " + e.message;
             btn.disabled = false;
-            status.innerText = "❌ 任务初始化异常";
-            errBox.innerText = e.message;
-            errBox.style.display = "block";
         }
     }
 
-    // 强化版轮询：增加时长到 3 分钟，增加重试容错
-    async function pollImageStatus(taskId) {
+    async function startPolling(taskId, pw) {
         const status = document.getElementById('status-text');
-        const pw = document.getElementById('access-pw').value;
-        let count = 0;
-        let retryCount = 0;
+        const btn = document.getElementById('main-btn');
+        let seconds = 0;
 
-        const timer = setInterval(async () => {
-            count++;
-            status.innerText = `⏳ AI 正在绘图中 (已等待 ${count * 3}s，请勿离开)...`;
+        pollTimer = setInterval(async () => {
+            seconds += 3;
+            status.innerText = `⏳ AI 绘图中 (已等待 ${seconds}s)...`;
 
             try {
                 const res = await fetch('/api/generate', {
@@ -109,62 +80,50 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ taskId, pass: pw })
                 });
-                
-                // 即使 fetch 失败（比如 Vercel 短暂超时），也不停止，继续下一次尝试
-                if (!res.ok) throw new Error("网络闪退");
-
                 const data = await res.json();
-                retryCount = 0; // 成功通讯，重置错误计次
 
-                if (data.data && data.data[0] && data.data[0].url) {
-                    clearInterval(timer);
-                    displayResult(data.data[0].url);
+                // --- 核心修复：多路径尝试解析 URL ---
+                let finalUrl = null;
+                if (data.data?.[0]?.url) {
+                    finalUrl = data.data[0].url;
+                } else if (data.url) {
+                    finalUrl = data.url;
+                } else if (data.images?.[0]) {
+                    finalUrl = data.images[0];
                 }
+
+                if (finalUrl) {
+                    clearInterval(pollTimer);
+                    showImage(finalUrl);
+                    status.innerText = "✅ 生成成功！";
+                    btn.disabled = false;
+                }
+
+                // 检查是否任务失败
+                const isFailed = data.status === 'failed' || data.data?.[0]?.status === 'failed';
+                if (isFailed) {
+                    clearInterval(pollTimer);
+                    status.innerText = "❌ API 生成失败，请重试";
+                    btn.disabled = false;
+                }
+
             } catch (e) {
-                retryCount++;
-                console.warn(`轮询异常重试中 (${retryCount}/10)...`);
-                if (retryCount > 10) {
-                    clearInterval(timer);
-                    status.innerText = "❌ 连接多次中断，请刷新页面查看历史";
-                    document.getElementById('main-btn').disabled = false;
-                }
+                console.warn("轮询解析异常，继续重试...");
             }
 
-            // 硬超时限制：180秒 (60次 * 3秒)
-            if (count > 60) {
-                clearInterval(timer);
-                status.innerText = "❌ 任务超时。虽然后台可能仍在画，但前端已停止等待。";
-                document.getElementById('main-btn').disabled = false;
+            // 180秒强制超时限制
+            if (seconds > 180) {
+                clearInterval(pollTimer);
+                status.innerText = "❌ 等待过久，请刷新页面查看历史记录";
+                btn.disabled = false;
             }
         }, 3000);
     }
 
-    function displayResult(url) {
-        imgUrl = url;
-        document.getElementById('res-img').src = url;
-        document.getElementById('result-area').style.display = "block";
-        document.getElementById('status-text').innerText = "✅ 生成成功！图片已就绪。";
-        document.getElementById('main-btn').disabled = false;
-    }
-
-    // 下载原图
-    async function saveImage() {
-        const btn = document.querySelector('.download-btn');
-        btn.innerText = "正在下载...";
-        try {
-            const response = await fetch(imgUrl);
-            const blob = await response.blob();
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `AI_Artwork_${Date.now()}.png`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            btn.innerText = "下载成功";
-        } catch (e) {
-            alert("下载失败，请长按图片手动保存");
-            btn.innerText = "保存失败";
-        }
+    function showImage(url) {
+        const img = document.getElementById('res-img');
+        img.src = url;
+        img.style.display = "block";
     }
 </script>
 
