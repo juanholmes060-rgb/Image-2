@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { prompt, pass, taskId, size } = req.body;
+  const { prompt, pass, taskId, size, ref_image } = req.body;
   if (pass !== "661500") return res.status(401).json({ error: '密码错误' });
 
   const API_KEY = process.env.OPENAI_API_KEY;
@@ -20,12 +20,20 @@ export default async function handler(req, res) {
       finalUrl = "https://api.apimart.ai/v1/images/generations";
       options.method = 'POST';
       options.headers['Content-Type'] = 'application/json';
-      options.body = JSON.stringify({
+      
+      const payload = {
         model: "gpt-image-2",
         prompt: prompt,
         n: 1,
-        size: size || "1024x1024" // 使用前端传来的比例
-      });
+        size: size || "1024x1024"
+      };
+
+      // 如果有参考图，加入参数
+      if (ref_image) {
+        payload.ref_image = ref_image; 
+      }
+
+      options.body = JSON.stringify(payload);
     }
 
     const response = await fetch(finalUrl, options);
