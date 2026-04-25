@@ -10,10 +10,12 @@ export default async function handler(req, res) {
   const BASE_URL = "https://api.apimart.ai/v1/images/generations";
 
   try {
-    // 模式 A：查询已有任务状态
+    // 模式 A：如果带了 taskId，则去 API Mart 查询图片是否画好了
     if (taskId) {
       const checkRes = await fetch(`${BASE_URL}/${taskId}`, {
-        headers: { 'Authorization': `Bearer ${API_KEY}` }
+        headers: { 'Authorization': `Bearer ${API_KEY}` },
+        // 关键：给查询请求设置短超时，防止它卡住 Vercel 进程
+        signal: AbortSignal.timeout(9000) 
       });
       const checkData = await checkRes.json();
       return res.status(200).json(checkData);
@@ -31,13 +33,18 @@ export default async function handler(req, res) {
         prompt: prompt,
         n: 1,
         size: "1024x1024"
-      })
+      }),
+      signal: AbortSignal.timeout(9000)
     });
 
     const result = await response.json();
     res.status(200).json(result);
 
   } catch (e) {
-    res.status(500).json({ error: "服务器通讯异常", details: e.message });
+    // 捕获所有错误并返回给前端，避免前端因 502 崩溃
+    res.status(500).json({ 
+      error: "服务器繁忙或超时，请继续等待", 
+      details: e.message 
+    });
   }
 }
