@@ -2,83 +2,207 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>AI 绘图</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 高级创作工作站</title>
     <style>
-        body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; padding: 20px; }
-        .card { background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
-        textarea, input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        button:disabled { background: #ccc; }
-        #res-img { width: 100%; border-radius: 8px; display: none; margin-top: 15px; }
-        .st { margin: 15px 0; text-align: center; color: #666; font-size: 13px; }
-        .box { display: none; margin-top: 15px; padding: 10px; background: #eee; border-radius: 8px; word-break: break-all; font-size: 11px; }
+        :root { --primary: #007aff; --bg: #f5f5f7; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; margin: 0; }
+        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 100%; max-width: 440px; }
+        
+        /* 登录墙样式 */
+        #login-screen { text-align: center; padding: 40px 0; }
+        #main-app { display: none; }
+
+        h2 { margin-top: 0; font-size: 22px; color: #1d1d1f; text-align: center; }
+        .group { margin-bottom: 15px; }
+        label { display: block; font-size: 13px; color: #86868b; margin-bottom: 5px; margin-left: 5px; }
+        
+        input, textarea, select { 
+            width: 100%; padding: 12px; border: 1px solid #d2d2d7; border-radius: 12px; 
+            box-sizing: border-box; font-size: 15px; outline: none; transition: 0.2s;
+        }
+        input:focus, textarea:focus { border-color: var(--primary); }
+
+        .grid-select { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        
+        button { 
+            width: 100%; padding: 15px; background: #000; color: #fff; border: none; 
+            border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 10px;
+        }
+        button:active { transform: scale(0.98); }
+        button:disabled { background: #d2d2d7; }
+
+        #res-img { width: 100%; border-radius: 12px; display: none; margin-top: 20px; border: 1px solid #eee; }
+        .status { text-align: center; margin: 15px 0; font-size: 14px; color: #666; min-height: 20px; }
+        
+        /* 下载区域 */
+        #download-box { display: none; margin-top: 15px; background: #f9f9f9; padding: 15px; border-radius: 12px; border: 1px solid #eee; text-align: center; }
+        .url-link { font-size: 11px; color: var(--primary); word-break: break-all; margin-bottom: 10px; display: block; }
     </style>
 </head>
 <body>
+
 <div class="card">
-    <input type="password" id="pw" placeholder="密码">
-    <textarea id="pt" rows="3" placeholder="画面描述词..."></textarea>
-    <button id="btn" onclick="go()">生成图片</button>
-    <div id="st" class="st">就绪</div>
-    <img id="res-img">
-    <div id="box" class="box">
-        <strong>链接：</strong><a id="url" target="_blank" style="color:blue">点击打开</a>
+    <div id="login-screen">
+        <h2>身份验证</h2>
+        <input type="password" id="access-pw" placeholder="输入访问密码">
+        <button onclick="checkLogin()">进入工作站</button>
+    </div>
+
+    <div id="main-app">
+        <h2>🎨 视觉创作中心</h2>
+        
+        <div class="group">
+            <label>画面描述</label>
+            <textarea id="prompt" rows="3" placeholder="例如：赛博朋克风格的狮子，霓虹灯光，4k渲染..."></textarea>
+        </div>
+
+        <div class="grid-select">
+            <div class="group">
+                <label>图片比例</label>
+                <select id="ratio">
+                    <option value="1:1">1:1 (正方形)</option>
+                    <option value="9:16">9:16 (手机屏)</option>
+                    <option value="16:9">16:9 (宽屏)</option>
+                    <option value="4:3">4:3 (标准)</option>
+                </select>
+            </div>
+            <div class="group">
+                <label>清晰度</label>
+                <select id="pixel">
+                    <option value="1024">1K (标准)</option>
+                    <option value="2048">2K (高清)</option>
+                    <option value="4096">4K (超清)</option>
+                </select>
+            </div>
+        </div>
+
+        <button id="gen-btn" onclick="handleGenerate()">开始生成图像</button>
+        
+        <div id="status" class="status"></div>
+        <img id="res-img">
+
+        <div id="download-box">
+            <span class="url-link" id="url-text"></span>
+            <button onclick="saveImage()" style="background:#28a745">一键保存图片到本地</button>
+        </div>
     </div>
 </div>
 
 <script>
-    let timer = null;
-    async function go() {
-        const pt = document.getElementById('pt').value, pw = document.getElementById('pw').value;
-        const st = document.getElementById('st'), btn = document.getElementById('btn');
-        if(!pt || !pw) return;
-        btn.disabled = true; st.innerText = "🚀 提交中...";
+    let globalPass = "";
+    let currentImgUrl = "";
+    let pollTimer = null;
+
+    // 登录检查
+    function checkLogin() {
+        const pw = document.getElementById('access-pw').value;
+        if(pw === "661500") {
+            globalPass = pw;
+            document.getElementById('login-screen').style.display = "none";
+            document.getElementById('main-app').style.display = "block";
+        } else {
+            alert("密码错误，请重新输入");
+        }
+    }
+
+    async function handleGenerate() {
+        const prompt = document.getElementById('prompt').value;
+        const ratio = document.getElementById('ratio').value;
+        const pixel = document.getElementById('pixel').value;
+        const status = document.getElementById('status');
+        const btn = document.getElementById('gen-btn');
+
+        if(!prompt) return alert("请输入描述词");
+
+        // 计算尺寸参数
+        let size = "1024x1024";
+        if(ratio === "9:16") size = `${Math.floor(pixel*0.56)}x${pixel}`;
+        else if(ratio === "16:9") size = `${pixel}x${Math.floor(pixel*0.56)}`;
+        else if(ratio === "4:3") size = `${pixel}x${Math.floor(pixel*0.75)}`;
+        else size = `${pixel}x${pixel}`;
+
+        btn.disabled = true;
+        document.getElementById('res-img').style.display = "none";
+        document.getElementById('download-box').style.display = "none";
+        status.innerText = "🚀 正在排队任务...";
+
         try {
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: pt, pass: pw })
+                body: JSON.stringify({ prompt, pass: globalPass, size: size })
             });
             const data = await res.json();
             const tid = data.task_id || (data.data && data.data[0] && data.data[0].task_id);
-            if(tid) poll(tid, pw); else {
-                const u = find(data); if(u) show(u); else throw new Error("ID丢失");
+
+            if(tid) startPolling(tid);
+            else {
+                const u = findUrl(data);
+                if(u) renderResult(u); else throw new Error("启动失败");
             }
-        } catch(e) { st.innerText = "❌ "+e.message; btn.disabled = false; }
+        } catch(e) {
+            status.innerText = "❌ 错误: " + e.message;
+            btn.disabled = false;
+        }
     }
 
-    function poll(tid, pw) {
+    function startPolling(tid) {
+        const status = document.getElementById('status');
         let sec = 0;
-        timer = setInterval(async () => {
-            sec += 3; document.getElementById('st').innerText = `⏳ 绘制中(${sec}s)...`;
-            const res = await fetch('/api/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ taskId: tid, pass: pw })
-            });
-            const data = await res.json();
-            const u = find(data);
-            if(u) { clearInterval(timer); show(u); }
+        pollTimer = setInterval(async () => {
+            sec += 3;
+            status.innerText = `⏳ 正在努力创作中 (${sec}s)...`;
+            try {
+                const res = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ taskId: tid, pass: globalPass })
+                });
+                const data = await res.json();
+                const u = findUrl(data);
+                if(u) { clearInterval(pollTimer); renderResult(u); }
+            } catch(e) {}
         }, 3000);
     }
 
-    function find(o) {
-        if(!o) return null;
-        if(typeof o === 'string' && o.startsWith('http')) return o;
-        if(o.url) return o.url;
-        if(o.data && o.data[0] && o.data[0].url) return o.data[0].url;
-        for(let k in o) { if(typeof o[k] === 'object') { const f = find(o[k]); if(f) return f; } }
+    function findUrl(obj) {
+        if(!obj) return null;
+        if(typeof obj === 'string' && obj.startsWith('http')) return obj;
+        if(obj.url) return obj.url;
+        if(obj.data && obj.data[0] && obj.data[0].url) return obj.data[0].url;
+        for(let k in obj) { if(typeof obj[k] === 'object') { const f = findUrl(obj[k]); if(f) return f; } }
         return null;
     }
 
-    function show(u) {
-        document.getElementById('res-img').src = u;
-        document.getElementById('res-img').style.display = "block";
-        document.getElementById('url').href = u;
-        document.getElementById('url').innerText = u;
-        document.getElementById('box').style.display = "block";
-        document.getElementById('st').innerText = "✅ 完成";
-        document.getElementById('btn').disabled = false;
+    function renderResult(url) {
+        currentImgUrl = url;
+        const img = document.getElementById('res-img');
+        const box = document.getElementById('download-box');
+        const ut = document.getElementById('url-text');
+        
+        img.src = url;
+        img.style.display = "block";
+        ut.innerText = url;
+        box.style.display = "block";
+        document.getElementById('status').innerText = "✅ 创作完成！";
+        document.getElementById('gen-btn').disabled = false;
+    }
+
+    async function saveImage() {
+        try {
+            const response = await fetch(currentImgUrl);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `AI_Gen_${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (e) {
+            window.open(currentImgUrl, '_blank');
+        }
     }
 </script>
 </body>
