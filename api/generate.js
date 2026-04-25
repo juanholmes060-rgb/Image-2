@@ -10,32 +10,38 @@ export default async function handler(req, res) {
   const API_KEY = process.env.OPENAI_API_KEY;
 
   try {
-    let url = "https://api.apimart.ai/v1/images/generations";
-    let options = {
-      headers: {
-        'Authorization': `Bearer ${API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    };
+    let fetchUrl, fetchOptions;
 
     if (taskId) {
-      // 官方标准查询路径
-      url = `https://api.apimart.ai/v1/tasks/${taskId}`;
-      options.method = 'GET';
+      // --- 关键修改：去掉路径中的 images/generations ---
+      fetchUrl = `https://api.apimart.ai/v1/tasks/${taskId}`;
+      fetchOptions = {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${API_KEY}` }
+      };
     } else {
-      options.method = 'POST';
-      options.body = JSON.stringify({
-        model: "gpt-image-2",
-        prompt: prompt,
-        n: 1,
-        size: "1024x1024"
-      });
+      fetchUrl = "https://api.apimart.ai/v1/images/generations";
+      fetchOptions = {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: "gpt-image-2",
+          prompt: prompt,
+          n: 1,
+          size: "1024x1024"
+        })
+      };
     }
 
-    const response = await fetch(url, options);
+    const response = await fetch(fetchUrl, fetchOptions);
     const result = await response.json();
+    
+    // 把原始返回发给前端，方便调试
     res.status(200).json(result);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: "服务器错误", details: e.message });
   }
 }
