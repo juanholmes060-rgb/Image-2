@@ -2,39 +2,59 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>AI 绘图工作站</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 视觉中心</title>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 40px; }
-        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
-        input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #000; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; width: 100%; }
+        body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; padding: 20px; }
+        .card { background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 100%; max-width: 420px; }
+        textarea, input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
+        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
         button:disabled { background: #ccc; }
-        #res-img { width: 100%; margin-top: 20px; border-radius: 10px; display: none; }
-        .st { margin-top: 15px; text-align: center; color: #666; font-size: 14px; }
+        #res-img { width: 100%; border-radius: 12px; display: none; margin-top: 15px; }
+        .st { margin: 15px 0; text-align: center; color: #666; font-size: 14px; }
+        .action-area { display: none; margin-top: 15px; background: #f9f9f9; padding: 15px; border-radius: 10px; border: 1px dashed #ccc; }
+        .url-text { font-size: 11px; color: #007aff; word-break: break-all; margin-bottom: 10px; display: block; }
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .sub-btn { background: #555; font-size: 13px; padding: 10px; }
     </style>
 </head>
 <body>
+
 <div class="card">
-    <h2>🎨 视觉创作中心</h2>
+    <h2 style="text-align:center">🎨 视觉创作中心</h2>
     <input type="password" id="pw" placeholder="访问密码">
-    <textarea id="pt" rows="3" placeholder="描述画面..."></textarea>
-    <button id="btn" onclick="go()">开始生成</button>
-    <div id="st" class="st"></div>
+    <textarea id="pt" rows="3" placeholder="描述想要生成的画面..."></textarea>
+    <button id="btn" onclick="start()">开始生成图像</button>
+    
+    <div id="st" class="st">等待操作...</div>
+    
     <img id="res-img">
+
+    <div id="action-area" class="action-area">
+        <span class="url-text" id="url-display"></span>
+        <div class="btn-group">
+            <button class="sub-btn" onclick="copyUrl()">复制地址</button>
+            <button class="sub-btn" style="background:#10b981" onclick="downloadImg()">保存图片</button>
+        </div>
+    </div>
 </div>
 
 <script>
-    let itv = null;
+    let timer = null;
+    let finalUrl = "";
 
-    async function go() {
+    async function start() {
         const pt = document.getElementById('pt').value;
         const pw = document.getElementById('pw').value;
         const st = document.getElementById('st');
         const btn = document.getElementById('btn');
+        const action = document.getElementById('action-area');
         
-        if(!pt || !pw) return alert("信息不全");
+        if(!pt || !pw) return alert("请填写完整");
         btn.disabled = true;
-        st.innerText = "🚀 正在提交任务...";
+        action.style.display = "none";
+        document.getElementById('res-img').style.display = "none";
+        st.innerText = "🚀 任务提交中...";
 
         try {
             const res = await fetch('/api/generate', {
@@ -43,15 +63,12 @@
                 body: JSON.stringify({ prompt: pt, pass: pw })
             });
             const data = await res.json();
-            
-            // 自动寻找 taskId
             const tid = data.task_id || (data.data && data.data[0] && data.data[0].task_id);
 
-            if (tid) {
-                poll(tid, pw);
-            } else {
+            if (tid) poll(tid, pw);
+            else {
                 const url = find(data);
-                if (url) show(url); else throw new Error("未获取到任务ID");
+                if (url) show(url); else throw new Error("API未返回任务ID");
             }
         } catch (e) {
             st.innerText = "❌ 失败: " + e.message;
@@ -59,12 +76,12 @@
         }
     }
 
-    async function poll(tid, pw) {
+    function poll(tid, pw) {
         const st = document.getElementById('st');
         let sec = 0;
-        itv = setInterval(async () => {
+        timer = setInterval(async () => {
             sec += 3;
-            st.innerText = `⏳ 绘图中 (${sec}s)...`;
+            st.innerText = `⏳ AI 绘图中 (${sec}s)...`;
             try {
                 const res = await fetch('/api/generate', {
                     method: 'POST',
@@ -74,16 +91,17 @@
                 const data = await res.json();
                 const url = find(data);
                 if (url) {
-                    clearInterval(itv);
+                    clearInterval(timer);
                     show(url);
                 }
             } catch (e) {}
-            if (sec > 150) { clearInterval(itv); st.innerText = "❌ 超时"; btn.disabled = false; }
+            if (sec > 150) { clearInterval(timer); st.innerText = "❌ 超时"; document.getElementById('btn').disabled = false; }
         }, 3000);
     }
 
     function find(o) {
         if (!o) return null;
+        if (typeof o === 'string' && o.startsWith('http')) return o;
         if (o.url) return o.url;
         if (o.data && o.data[0] && o.data[0].url) return o.data[0].url;
         if (o.images && o.images[0]) return o.images[0];
@@ -92,11 +110,36 @@
     }
 
     function show(u) {
+        finalUrl = u;
         const img = document.getElementById('res-img');
+        const st = document.getElementById('st');
+        const action = document.getElementById('action-area');
+        const urlDisplay = document.getElementById('url-display');
+
         img.src = u;
         img.style.display = "block";
-        document.getElementById('st').innerText = "✅ 完成！";
+        urlDisplay.innerText = u;
+        action.style.display = "block";
+        st.innerText = "✅ 生成成功！";
         document.getElementById('btn').disabled = false;
+    }
+
+    function copyUrl() {
+        navigator.clipboard.writeText(finalUrl);
+        alert("地址已复制到剪贴板");
+    }
+
+    async function downloadImg() {
+        try {
+            const response = await fetch(finalUrl);
+            const blob = await response.blob();
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `AI_Image_${Date.now()}.png`;
+            link.click();
+        } catch (e) {
+            window.open(finalUrl, '_blank');
+        }
     }
 </script>
 </body>
