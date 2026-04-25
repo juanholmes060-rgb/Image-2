@@ -2,45 +2,43 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 视觉工作站</title>
+    <title>视觉创作中心</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f4f4f7; display: flex; justify-content: center; padding: 40px; margin: 0; }
-        .container { background: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 100%; max-width: 420px; }
-        h2 { margin: 0 0 20px; text-align: center; color: #333; }
-        input, textarea { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 12px; box-sizing: border-box; font-size: 15px; }
-        button { width: 100%; padding: 15px; background: #000; color: #fff; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        #res-img { width: 100%; border-radius: 12px; margin-top: 20px; display: none; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 40px; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; }
+        input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #ccc; }
+        #res-img { width: 100%; margin-top: 20px; border-radius: 10px; display: none; border: 1px solid #eee; }
         .status { margin-top: 15px; text-align: center; color: #666; font-size: 14px; min-height: 20px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>🎨 视觉创作中心</h2>
-    <input type="password" id="pw" placeholder="访问密码 (661500)">
-    <textarea id="prompt" rows="3" placeholder="描述你想要的画面..."></textarea>
-    <button id="btn" onclick="start()">开始生成</button>
-    <div id="status" class="status"></div>
-    <img id="res-img">
+<div class="card">
+    <h2 style="text-align:center">🎨 视觉创作中心</h2>
+    <input type="password" id="pw" placeholder="输入访问密码 (661500)">
+    <textarea id="prompt" rows="3" placeholder="描述你想要生成的画面..."></textarea>
+    <button id="btn" onclick="submit()">开始生成</button>
+    <div id="st" class="status"></div>
+    <img id="res-img" alt="生成的图像">
 </div>
 
 <script>
-    let timer = null;
+    let pollInterval = null;
 
-    async function start() {
+    async function submit() {
         const prompt = document.getElementById('prompt').value;
         const pw = document.getElementById('pw').value;
-        const st = document.getElementById('status');
+        const st = document.getElementById('st');
         const btn = document.getElementById('btn');
         const img = document.getElementById('res-img');
 
-        if (!prompt || !pw) return alert("请填写完整");
+        if (!prompt || !pw) return alert("请完整填写");
 
         btn.disabled = true;
         img.style.display = "none";
-        st.innerText = "🚀 正在提交任务...";
+        st.innerText = "🚀 任务启动中...";
 
         try {
             const res = await fetch('/api/generate', {
@@ -50,76 +48,73 @@
             });
             const data = await res.json();
 
-            // 识别 Task ID
+            // 提取 Task ID
             const tid = data.task_id || data.data?.[0]?.task_id;
 
             if (tid) {
-                poll(tid, pw);
+                startPolling(tid, pw);
             } else if (data.url || data.data?.[0]?.url) {
-                showResult(data.url || data.data?.[0]?.url);
+                finish(data.url || data.data?.[0]?.url);
             } else {
-                throw new Error(data.error || "接口未返回有效信息");
+                throw new Error(data.error || "未获取到任务ID");
             }
         } catch (e) {
-            st.innerText = "❌ 错误: " + e.message;
+            st.innerText = "❌ 启动失败: " + e.message;
             btn.disabled = false;
         }
     }
 
-    async function poll(tid, pw) {
-        const st = document.getElementById('status');
-        let seconds = 0;
+    function startPolling(tid, pw) {
+        const st = document.getElementById('st');
+        let count = 0;
 
-        timer = setInterval(async () => {
-            seconds += 3;
-            st.innerText = `⏳ 绘图中 (已等待 ${seconds}s，请勿离开)...`;
+        pollInterval = setInterval(async () => {
+            count += 3;
+            st.innerText = `⏳ AI 绘图中 (已等待 ${count}s)...`;
 
             try {
                 const res = await fetch('/api/generate', {
-                    method: 'POST', // 轮询依然通过 POST 传给我们的中转接口
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ taskId: tid, pass: pw })
                 });
                 const data = await res.json();
 
-                // --- 核心修复：全路径兼容性提取 URL ---
-                let finalUrl = null;
-                if (data.url) finalUrl = data.url;
-                else if (data.data?.[0]?.url) finalUrl = data.data[0].url;
-                else if (data.images?.[0]) finalUrl = data.images[0];
+                // 尝试各种可能的图片路径
+                let imgUrl = null;
+                if (data.url) imgUrl = data.url;
+                else if (data.data?.[0]?.url) imgUrl = data.data[0].url;
+                else if (data.images?.[0]) imgUrl = data.images[0];
 
-                if (finalUrl) {
-                    clearInterval(timer);
-                    showResult(finalUrl);
+                if (imgUrl) {
+                    clearInterval(pollInterval);
+                    finish(imgUrl);
                 }
-
-                // 如果后端明确返回失败
-                if (data.status === 'failed' || data.data?.[0]?.status === 'failed') {
-                    clearInterval(timer);
-                    st.innerText = "❌ AI 生成失败，请重试";
+                
+                if (data.status === 'failed') {
+                    clearInterval(pollInterval);
+                    st.innerText = "❌ 生成失败";
                     document.getElementById('btn').disabled = false;
                 }
             } catch (e) {
-                console.warn("单次轮询解析跳过...");
+                console.warn("查询跳过一次...");
             }
 
-            // 超时保护
-            if (seconds > 180) {
-                clearInterval(timer);
-                st.innerText = "❌ 任务超时，请刷新重试";
+            if (count > 150) {
+                clearInterval(pollInterval);
+                st.innerText = "❌ 等待超时，请刷新页面";
                 document.getElementById('btn').disabled = false;
             }
         }, 3000);
     }
 
-    function showResult(url) {
+    function finish(url) {
         const img = document.getElementById('res-img');
-        const st = document.getElementById('status');
-        const btn = document.getElementById('btn');
+        const st = document.getElementById('st');
         img.src = url;
         img.style.display = "block";
         st.innerText = "✅ 生成成功！";
-        btn.disabled = false;
+        document.getElementById('btn').disabled = false;
     }
 </script>
 
