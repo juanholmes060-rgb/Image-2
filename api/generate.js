@@ -1,13 +1,12 @@
 export default async function handler(req, res) {
-  // 设置跨域头
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { prompt, pass, taskId } = req.body;
 
-  // 1. 校验密码
   if (pass !== "661500") {
     return res.status(401).json({ error: '访问密码错误' });
   }
@@ -16,8 +15,7 @@ export default async function handler(req, res) {
   const BASE_URL = "https://api.apimart.ai/v1/images/generations";
 
   try {
-    // 2. 根据是否有 taskId 决定请求方式
-    // 有 taskId 用 GET 查询；没有用 POST 创建
+    // 自动切换：如果有 taskId 就发 GET 查询，没有就发 POST 创建
     const url = taskId ? `${BASE_URL}/${taskId}` : BASE_URL;
     const fetchOptions = {
       method: taskId ? 'GET' : 'POST',
@@ -37,12 +35,11 @@ export default async function handler(req, res) {
     }
 
     const response = await fetch(url, fetchOptions);
-    const result = await response.json();
-
-    // 3. 直接返回给前端
-    res.status(200).json(result);
-
+    const data = await response.json();
+    
+    // 直接返回原始 JSON，让前端处理
+    res.status(200).json(data);
   } catch (e) {
-    res.status(500).json({ error: "服务器通讯异常", details: e.message });
+    res.status(500).json({ error: "API通讯失败", details: e.message });
   }
 }
