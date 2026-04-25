@@ -3,43 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GPT-Image-2 创作中心</title>
+    <title>AI 视觉工作站</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 40px; }
-        .container { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
-        h2 { text-align: center; margin-bottom: 20px; font-size: 20px; }
-        input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 14px; }
-        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
+        body { font-family: -apple-system, sans-serif; background: #f4f4f7; display: flex; justify-content: center; padding: 40px; margin: 0; }
+        .container { background: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 100%; max-width: 420px; }
+        h2 { margin: 0 0 20px; text-align: center; color: #333; }
+        input, textarea { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 12px; box-sizing: border-box; font-size: 15px; }
+        button { width: 100%; padding: 15px; background: #000; color: #fff; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.3s; }
         button:disabled { background: #ccc; cursor: not-allowed; }
-        #res-img { width: 100%; margin-top: 20px; border-radius: 12px; display: none; border: 1px solid #eee; }
-        .status { margin-top: 15px; font-size: 13px; color: #666; text-align: center; min-height: 20px; }
+        #res-img { width: 100%; border-radius: 12px; margin-top: 20px; display: none; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .status { margin-top: 15px; text-align: center; color: #666; font-size: 14px; min-height: 20px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>🎨 创作中心</h2>
-    <input type="password" id="access-pw" placeholder="输入访问密码 (661500)">
-    <textarea id="prompt-input" rows="3" placeholder="例如：一只在宇宙中行走的猫..."></textarea>
-    <button id="main-btn" onclick="handleGenerate()">开始生成</button>
-    <div id="status-text" class="status"></div>
-    <img id="res-img" alt="AI Generated">
+    <h2>🎨 视觉创作中心</h2>
+    <input type="password" id="pw" placeholder="访问密码 (661500)">
+    <textarea id="prompt" rows="3" placeholder="描述你想要的画面..."></textarea>
+    <button id="btn" onclick="start()">开始生成</button>
+    <div id="status" class="status"></div>
+    <img id="res-img">
 </div>
 
 <script>
-    let pollTimer = null;
+    let timer = null;
 
-    async function handleGenerate() {
-        const prompt = document.getElementById('prompt-input').value;
-        const pw = document.getElementById('access-pw').value;
-        const status = document.getElementById('status-text');
-        const btn = document.getElementById('main-btn');
+    async function start() {
+        const prompt = document.getElementById('prompt').value;
+        const pw = document.getElementById('pw').value;
+        const st = document.getElementById('status');
+        const btn = document.getElementById('btn');
+        const img = document.getElementById('res-img');
 
-        if (!prompt || !pw) return alert("请完整填写内容");
+        if (!prompt || !pw) return alert("请填写完整");
 
         btn.disabled = true;
-        status.innerText = "🚀 正在提交任务...";
-        document.getElementById('res-img').style.display = "none";
+        img.style.display = "none";
+        st.innerText = "🚀 正在提交任务...";
 
         try {
             const res = await fetch('/api/generate', {
@@ -47,83 +48,78 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt, pass: pw })
             });
-            const result = await res.json();
+            const data = await res.json();
 
-            // 检查是否返回了任务 ID
-            const taskId = result.data?.[0]?.task_id || result.task_id;
+            // 识别 Task ID
+            const tid = data.task_id || data.data?.[0]?.task_id;
 
-            if (taskId) {
-                startPolling(taskId, pw);
-            } else if (result.data?.[0]?.url) {
-                showImage(result.data[0].url);
+            if (tid) {
+                poll(tid, pw);
+            } else if (data.url || data.data?.[0]?.url) {
+                showResult(data.url || data.data?.[0]?.url);
             } else {
-                throw new Error(result.error || "接口未返回有效任务 ID");
+                throw new Error(data.error || "接口未返回有效信息");
             }
         } catch (e) {
-            status.innerText = "❌ 启动失败: " + e.message;
+            st.innerText = "❌ 错误: " + e.message;
             btn.disabled = false;
         }
     }
 
-    async function startPolling(taskId, pw) {
-        const status = document.getElementById('status-text');
-        const btn = document.getElementById('main-btn');
+    async function poll(tid, pw) {
+        const st = document.getElementById('status');
         let seconds = 0;
 
-        pollTimer = setInterval(async () => {
+        timer = setInterval(async () => {
             seconds += 3;
-            status.innerText = `⏳ AI 绘图中 (已等待 ${seconds}s)...`;
+            st.innerText = `⏳ 绘图中 (已等待 ${seconds}s，请勿离开)...`;
 
             try {
                 const res = await fetch('/api/generate', {
-                    method: 'POST',
+                    method: 'POST', // 轮询依然通过 POST 传给我们的中转接口
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ taskId, pass: pw })
+                    body: JSON.stringify({ taskId: tid, pass: pw })
                 });
                 const data = await res.json();
 
-                // --- 核心修复：多路径尝试解析 URL ---
+                // --- 核心修复：全路径兼容性提取 URL ---
                 let finalUrl = null;
-                if (data.data?.[0]?.url) {
-                    finalUrl = data.data[0].url;
-                } else if (data.url) {
-                    finalUrl = data.url;
-                } else if (data.images?.[0]) {
-                    finalUrl = data.images[0];
-                }
+                if (data.url) finalUrl = data.url;
+                else if (data.data?.[0]?.url) finalUrl = data.data[0].url;
+                else if (data.images?.[0]) finalUrl = data.images[0];
 
                 if (finalUrl) {
-                    clearInterval(pollTimer);
-                    showImage(finalUrl);
-                    status.innerText = "✅ 生成成功！";
-                    btn.disabled = false;
+                    clearInterval(timer);
+                    showResult(finalUrl);
                 }
 
-                // 检查是否任务失败
-                const isFailed = data.status === 'failed' || data.data?.[0]?.status === 'failed';
-                if (isFailed) {
-                    clearInterval(pollTimer);
-                    status.innerText = "❌ API 生成失败，请重试";
-                    btn.disabled = false;
+                // 如果后端明确返回失败
+                if (data.status === 'failed' || data.data?.[0]?.status === 'failed') {
+                    clearInterval(timer);
+                    st.innerText = "❌ AI 生成失败，请重试";
+                    document.getElementById('btn').disabled = false;
                 }
-
             } catch (e) {
-                console.warn("轮询解析异常，继续重试...");
+                console.warn("单次轮询解析跳过...");
             }
 
-            // 180秒强制超时限制
+            // 超时保护
             if (seconds > 180) {
-                clearInterval(pollTimer);
-                status.innerText = "❌ 等待过久，请刷新页面查看历史记录";
-                btn.disabled = false;
+                clearInterval(timer);
+                st.innerText = "❌ 任务超时，请刷新重试";
+                document.getElementById('btn').disabled = false;
             }
         }, 3000);
     }
 
-    function showImage(url) {
+    function showResult(url) {
         const img = document.getElementById('res-img');
+        const st = document.getElementById('status');
+        const btn = document.getElementById('btn');
         img.src = url;
         img.style.display = "block";
+        st.innerText = "✅ 生成成功！";
+        btn.disabled = false;
     }
 </script>
 
