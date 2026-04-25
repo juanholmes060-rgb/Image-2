@@ -3,48 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 高级创作工作站</title>
+    <title>AI 视觉创作站</title>
     <style>
         :root { --primary: #007aff; --bg: #f5f5f7; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; margin: 0; }
         .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 100%; max-width: 440px; }
         
-        /* 登录墙样式 */
         #login-screen { text-align: center; padding: 40px 0; }
         #main-app { display: none; }
 
         h2 { margin-top: 0; font-size: 22px; color: #1d1d1f; text-align: center; }
         .group { margin-bottom: 15px; }
-        label { display: block; font-size: 13px; color: #86868b; margin-bottom: 5px; margin-left: 5px; }
+        label { display: block; font-size: 13px; color: #86868b; margin-bottom: 5px; margin-left: 5px; font-weight: 500; }
         
         input, textarea, select { 
             width: 100%; padding: 12px; border: 1px solid #d2d2d7; border-radius: 12px; 
             box-sizing: border-box; font-size: 15px; outline: none; transition: 0.2s;
         }
-        input:focus, textarea:focus { border-color: var(--primary); }
+        input:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(0,122,255,0.1); }
 
         .grid-select { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         
         button { 
             width: 100%; padding: 15px; background: #000; color: #fff; border: none; 
-            border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 10px;
+            border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 10px; transition: 0.3s;
         }
         button:active { transform: scale(0.98); }
-        button:disabled { background: #d2d2d7; }
+        button:disabled { background: #d2d2d7; cursor: not-allowed; }
 
-        #res-img { width: 100%; border-radius: 12px; display: none; margin-top: 20px; border: 1px solid #eee; }
+        /* 参考图样式 */
+        .ref-box { border: 2px dashed #d2d2d7; border-radius: 12px; padding: 10px; text-align: center; cursor: pointer; transition: 0.2s; position: relative; }
+        .ref-box:hover { border-color: var(--primary); background: #fbfbfb; }
+        #ref-preview { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; display: none; margin: 0 auto; }
+        .ref-hint { font-size: 13px; color: #86868b; }
+        .clear-ref { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.5); color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 20px; display: none; }
+
+        #res-img { width: 100%; border-radius: 12px; display: none; margin-top: 20px; border: 1px solid #eee; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
         .status { text-align: center; margin: 15px 0; font-size: 14px; color: #666; min-height: 20px; }
         
-        /* 下载区域 */
-        #download-box { display: none; margin-top: 15px; background: #f9f9f9; padding: 15px; border-radius: 12px; border: 1px solid #eee; text-align: center; }
-        .url-link { font-size: 11px; color: var(--primary); word-break: break-all; margin-bottom: 10px; display: block; }
+        #download-box { display: none; margin-top: 15px; text-align: center; }
+        .save-btn { background: #10b981; margin-top: 0; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <div id="login-screen">
-        <h2>身份验证</h2>
+        <h2>验证身份</h2>
         <input type="password" id="access-pw" placeholder="输入访问密码">
         <button onclick="checkLogin()">进入工作站</button>
     </div>
@@ -54,37 +59,47 @@
         
         <div class="group">
             <label>画面描述</label>
-            <textarea id="prompt" rows="3" placeholder="例如：赛博朋克风格的狮子，霓虹灯光，4k渲染..."></textarea>
+            <textarea id="prompt" rows="3" placeholder="写下你的创意..."></textarea>
+        </div>
+
+        <div class="group">
+            <label>参考图 (可选)</label>
+            <div class="ref-box" onclick="document.getElementById('ref-file').click()">
+                <div id="ref-placeholder">
+                    <span class="ref-hint">点击上传参考图</span>
+                </div>
+                <img id="ref-preview">
+                <div id="clear-ref" class="clear-ref" onclick="clearRef(event)">✕</div>
+                <input type="file" id="ref-file" hidden accept="image/*" onchange="handleFile(this)">
+            </div>
         </div>
 
         <div class="grid-select">
             <div class="group">
-                <label>图片比例</label>
+                <label>比例</label>
                 <select id="ratio">
-                    <option value="1:1">1:1 (正方形)</option>
-                    <option value="9:16">9:16 (手机屏)</option>
-                    <option value="16:9">16:9 (宽屏)</option>
-                    <option value="4:3">4:3 (标准)</option>
+                    <option value="1:1">1:1 正方形</option>
+                    <option value="9:16">9:16 手机</option>
+                    <option value="16:9">16:9 宽屏</option>
+                    <option value="4:3">4:3 标准</option>
                 </select>
             </div>
             <div class="group">
                 <label>清晰度</label>
                 <select id="pixel">
-                    <option value="1024">1K (标准)</option>
-                    <option value="2048">2K (高清)</option>
-                    <option value="4096">4K (超清)</option>
+                    <option value="1024">1K 标准</option>
+                    <option value="2048">2K 高清</option>
                 </select>
             </div>
         </div>
 
-        <button id="gen-btn" onclick="handleGenerate()">开始生成图像</button>
+        <button id="gen-btn" onclick="handleGenerate()">开始生成</button>
         
-        <div id="status" class="status"></div>
+        <div id="status" class="status">就绪</div>
         <img id="res-img">
 
         <div id="download-box">
-            <span class="url-link" id="url-text"></span>
-            <button onclick="saveImage()" style="background:#28a745">一键保存图片到本地</button>
+            <button class="save-btn" onclick="saveImage()">💾 一键保存到手机/电脑</button>
         </div>
     </div>
 </div>
@@ -92,18 +107,39 @@
 <script>
     let globalPass = "";
     let currentImgUrl = "";
-    let pollTimer = null;
+    let refBase64 = "";
 
-    // 登录检查
     function checkLogin() {
         const pw = document.getElementById('access-pw').value;
         if(pw === "661500") {
             globalPass = pw;
             document.getElementById('login-screen').style.display = "none";
             document.getElementById('main-app').style.display = "block";
-        } else {
-            alert("密码错误，请重新输入");
-        }
+        } else alert("密码错误");
+    }
+
+    // 处理参考图上传
+    function handleFile(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            refBase64 = e.target.result;
+            document.getElementById('ref-preview').src = refBase64;
+            document.getElementById('ref-preview').style.display = "block";
+            document.getElementById('ref-placeholder').style.display = "none";
+            document.getElementById('clear-ref').style.display = "block";
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function clearRef(e) {
+        e.stopPropagation();
+        refBase64 = "";
+        document.getElementById('ref-file').value = "";
+        document.getElementById('ref-preview').style.display = "none";
+        document.getElementById('ref-placeholder').style.display = "block";
+        document.getElementById('clear-ref').style.display = "none";
     }
 
     async function handleGenerate() {
@@ -113,9 +149,8 @@
         const status = document.getElementById('status');
         const btn = document.getElementById('gen-btn');
 
-        if(!prompt) return alert("请输入描述词");
+        if(!prompt) return alert("写点什么吧");
 
-        // 计算尺寸参数
         let size = "1024x1024";
         if(ratio === "9:16") size = `${Math.floor(pixel*0.56)}x${pixel}`;
         else if(ratio === "16:9") size = `${pixel}x${Math.floor(pixel*0.56)}`;
@@ -125,13 +160,18 @@
         btn.disabled = true;
         document.getElementById('res-img').style.display = "none";
         document.getElementById('download-box').style.display = "none";
-        status.innerText = "🚀 正在排队任务...";
+        status.innerText = "🚀 AI 正在构思中...";
 
         try {
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, pass: globalPass, size: size })
+                body: JSON.stringify({ 
+                    prompt, 
+                    pass: globalPass, 
+                    size: size,
+                    ref_image: refBase64 // 发送参考图
+                })
             });
             const data = await res.json();
             const tid = data.task_id || (data.data && data.data[0] && data.data[0].task_id);
@@ -148,11 +188,10 @@
     }
 
     function startPolling(tid) {
-        const status = document.getElementById('status');
         let sec = 0;
-        pollTimer = setInterval(async () => {
+        const timer = setInterval(async () => {
             sec += 3;
-            status.innerText = `⏳ 正在努力创作中 (${sec}s)...`;
+            document.getElementById('status').innerText = `⏳ 正在努力渲染 (${sec}s)...`;
             try {
                 const res = await fetch('/api/generate', {
                     method: 'POST',
@@ -161,46 +200,43 @@
                 });
                 const data = await res.json();
                 const u = findUrl(data);
-                if(u) { clearInterval(pollTimer); renderResult(u); }
+                if(u) { clearInterval(timer); renderResult(u); }
             } catch(e) {}
         }, 3000);
     }
 
-    function findUrl(obj) {
-        if(!obj) return null;
-        if(typeof obj === 'string' && obj.startsWith('http')) return obj;
-        if(obj.url) return obj.url;
-        if(obj.data && obj.data[0] && obj.data[0].url) return obj.data[0].url;
-        for(let k in obj) { if(typeof obj[k] === 'object') { const f = findUrl(obj[k]); if(f) return f; } }
+    function findUrl(o) {
+        if(!o) return null;
+        if(typeof o === 'string' && o.startsWith('http')) return o;
+        if(o.url) return o.url;
+        if(o.data && o.data[0] && o.data[0].url) return o.data[0].url;
+        for(let k in o) { if(typeof o[k] === 'object') { const f = findUrl(o[k]); if(f) return f; } }
         return null;
     }
 
     function renderResult(url) {
         currentImgUrl = url;
         const img = document.getElementById('res-img');
-        const box = document.getElementById('download-box');
-        const ut = document.getElementById('url-text');
-        
         img.src = url;
         img.style.display = "block";
-        ut.innerText = url;
-        box.style.display = "block";
-        document.getElementById('status').innerText = "✅ 创作完成！";
+        document.getElementById('download-box').style.display = "block";
+        document.getElementById('status').innerText = "✅ 渲染完成！";
         document.getElementById('gen-btn').disabled = false;
     }
 
     async function saveImage() {
+        const status = document.getElementById('status');
+        status.innerText = "💾 正在准备下载...";
         try {
-            const response = await fetch(currentImgUrl);
-            const blob = await response.blob();
+            const res = await fetch(currentImgUrl);
+            const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `AI_Gen_${Date.now()}.png`;
-            document.body.appendChild(a);
+            a.download = `AI_Work_${Date.now()}.png`;
             a.click();
-            window.URL.revokeObjectURL(url);
-        } catch (e) {
+            status.innerText = "✅ 下载已开始";
+        } catch(e) {
             window.open(currentImgUrl, '_blank');
         }
     }
