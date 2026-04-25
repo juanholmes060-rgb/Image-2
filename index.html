@@ -2,64 +2,68 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>GPT-Image-2 视觉中心</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-Image-2 视觉创作站</title>
     <style>
-        body { font-family: sans-serif; background: #f7f7f9; display: flex; justify-content: center; padding-top: 50px; }
-        .card { background: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); width: 400px; }
-        input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #000; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
-        button:disabled { background: #ccc; }
-        #res-img { width: 100%; margin-top: 20px; border-radius: 12px; display: none; }
-        .status { margin-top: 15px; text-align: center; font-size: 13px; color: #888; }
+        body { font-family: -apple-system, sans-serif; background: #f5f7fa; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .container { background: #fff; padding: 30px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.06); width: 100%; max-width: 400px; }
+        h2 { text-align: center; margin-bottom: 25px; color: #1d1d1f; letter-spacing: -0.5px; }
+        input, textarea { width: 100%; padding: 14px; margin-bottom: 16px; border: 1px solid #e1e1e1; border-radius: 12px; box-sizing: border-box; font-size: 15px; outline: none; transition: 0.2s; }
+        input:focus, textarea:focus { border-color: #007aff; }
+        button { width: 100%; padding: 16px; background: #000; color: #fff; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; transition: 0.3s; font-size: 16px; }
+        button:disabled { background: #d2d2d7; cursor: not-allowed; }
+        #res-img { width: 100%; border-radius: 14px; margin-top: 20px; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .st { margin-top: 18px; text-align: center; color: #86868b; font-size: 14px; min-height: 20px; line-height: 1.5; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h2 style="text-align:center">🎨 视觉创作中心</h2>
-    <input type="password" id="pw" placeholder="访问密码">
-    <textarea id="pt" rows="3" placeholder="输入绘画描述..."></textarea>
-    <button id="btn" onclick="run()">开始生成</button>
-    <div id="st" class="status"></div>
+<div class="container">
+    <h2>🎨 视觉创作中心</h2>
+    <input type="password" id="pw" placeholder="访问密码 (661500)">
+    <textarea id="pt" rows="3" placeholder="描述你想要生成的画面..."></textarea>
+    <button id="btn" onclick="start()">开始生成</button>
+    <div id="st" class="st"></div>
     <img id="res-img">
 </div>
 
 <script>
     let timer = null;
 
-    async function run() {
-        const prompt = document.getElementById('pt').value;
+    async function start() {
+        const pt = document.getElementById('pt').value;
         const pw = document.getElementById('pw').value;
         const st = document.getElementById('st');
         const btn = document.getElementById('btn');
-        
-        if(!prompt || !pw) return alert("请填写完整");
-        
+        const img = document.getElementById('res-img');
+
+        if (!pt || !pw) return alert("请完整输入");
+
         btn.disabled = true;
-        st.innerText = "🚀 正在提交任务...";
-        document.getElementById('res-img').style.display = "none";
+        img.style.display = "none";
+        st.innerHTML = "🚀 正在向 AI 提交任务...";
 
         try {
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, pass: pw })
+                body: JSON.stringify({ prompt: pt, pass: pw })
             });
             const data = await res.json();
 
-            // 提取任务 ID (支持多种结构)
+            // 1. 尝试寻找 Task ID 进行异步轮询
             const tid = data.task_id || (data.data && data.data[0] && data.data[0].task_id);
 
             if (tid) {
                 poll(tid, pw);
             } else {
-                // 尝试直接找 URL
-                const quickUrl = findUrl(data);
-                if (quickUrl) show(quickUrl);
-                else throw new Error("未获取到任务ID或图片链接");
+                // 2. 如果没有 ID，尝试直接寻找 URL (同步返回的情况)
+                const url = findImg(data);
+                if (url) success(url);
+                else throw new Error(data.error || "接口未返回有效图像任务");
             }
         } catch (e) {
-            st.innerText = "❌ 失败: " + e.message;
+            st.innerHTML = `❌ 错误: ${e.message}`;
             btn.disabled = false;
         }
     }
@@ -70,7 +74,7 @@
 
         timer = setInterval(async () => {
             sec += 3;
-            st.innerText = `⏳ 绘图中 (${sec}s)...`;
+            st.innerHTML = `⏳ AI 正在深度绘图中...<br>(已等待 ${sec}s，任务ID: ${tid.substring(0,8)}...)`;
 
             try {
                 const res = await fetch('/api/generate', {
@@ -80,51 +84,57 @@
                 });
                 const data = await res.json();
 
-                const finalUrl = findUrl(data);
-                if (finalUrl) {
+                const imgUrl = findImg(data);
+                if (imgUrl) {
                     clearInterval(timer);
-                    show(finalUrl);
+                    success(imgUrl);
                 }
 
-                if (data.status === 'failed') {
+                if (data.status === 'failed' || (data.data && data.data[0] && data.data[0].status === 'failed')) {
                     clearInterval(timer);
-                    st.innerText = "❌ 生成失败";
+                    st.innerHTML = "❌ AI 生成失败，请尝试简化描述词";
                     document.getElementById('btn').disabled = false;
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error("Polling error:", e);
+            }
 
-            if (sec > 120) {
+            if (sec > 150) {
                 clearInterval(timer);
-                st.innerText = "❌ 超时，请刷新页面";
+                st.innerHTML = "❌ 任务超时，请刷新页面重新开始";
                 document.getElementById('btn').disabled = false;
             }
         }, 3000);
     }
 
-    // 暴力搜索 JSON 对象中的图片链接
-    function findUrl(obj) {
+    // 图像链接深度扫描器
+    function findImg(obj) {
         if (!obj) return null;
-        // 常见的几种存放路径
-        if (typeof obj.url === 'string') return obj.url;
+        if (typeof obj === 'string' && obj.startsWith('http')) return obj;
+        if (obj.url) return obj.url;
         if (obj.data && obj.data[0] && obj.data[0].url) return obj.data[0].url;
         if (obj.images && obj.images[0]) return obj.images[0];
-        // 递归深层查找
-        for (let key in obj) {
-            if (typeof obj[key] === 'object') {
-                const found = findUrl(obj[key]);
+        
+        // 递归查找所有属性
+        for (let k in obj) {
+            if (typeof obj[k] === 'object') {
+                const found = findImg(obj[k]);
                 if (found) return found;
             }
         }
         return null;
     }
 
-    function show(url) {
+    function success(url) {
         const img = document.getElementById('res-img');
+        const st = document.getElementById('st');
+        const btn = document.getElementById('btn');
         img.src = url;
         img.style.display = "block";
-        document.getElementById('st').innerText = "✅ 生成成功！";
-        document.getElementById('btn').disabled = false;
+        st.innerHTML = "✅ 画面生成成功！";
+        btn.disabled = false;
     }
 </script>
+
 </body>
 </html>
