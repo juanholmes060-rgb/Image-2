@@ -13,18 +13,18 @@
         h2 { margin-top: 0; font-size: 22px; color: #1d1d1f; text-align: center; }
         .group { margin-bottom: 15px; }
         label { display: block; font-size: 13px; color: #86868b; margin-bottom: 5px; margin-left: 5px; font-weight: 500; }
-        input, textarea, select { width: 100%; padding: 12px; border: 1px solid #d2d2d7; border-radius: 12px; box-sizing: border-box; font-size: 15px; outline: none; transition: 0.2s; }
+        input, textarea, select { width: 100%; padding: 12px; border: 1px solid #d2d2d7; border-radius: 12px; box-sizing: border-box; font-size: 15px; outline: none; }
         .grid-select { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        button { width: 100%; padding: 15px; background: #000; color: #fff; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 10px; transition: 0.3s; }
+        button { width: 100%; padding: 15px; background: #000; color: #fff; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 10px; }
         button:disabled { background: #d2d2d7; cursor: not-allowed; }
         .ref-box { border: 2px dashed #d2d2d7; border-radius: 12px; padding: 10px; text-align: center; cursor: pointer; position: relative; }
         #ref-preview { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; display: none; margin: 0 auto; }
         .ref-hint { font-size: 13px; color: #86868b; }
-        .clear-ref { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.5); color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 20px; display: none; }
+        .clear-ref { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.5); color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; text-align: center; line-height: 20px; display: none; }
         #res-img { width: 100%; border-radius: 12px; display: none; margin-top: 20px; border: 1px solid #eee; }
         .status { text-align: center; margin: 15px 0; font-size: 14px; color: #666; min-height: 20px; }
         #download-box { display: none; margin-top: 15px; text-align: center; }
-        .save-btn { background: #10b981; margin-top: 0; }
+        .save-btn { background: #10b981; }
     </style>
 </head>
 <body>
@@ -32,7 +32,7 @@
 <div class="card">
     <div id="login-screen">
         <h2>验证身份</h2>
-        <input type="password" id="access-pw" placeholder="输入访问密码">
+        <input type="password" id="access-pw" placeholder="访问密码">
         <button onclick="checkLogin()">进入工作站</button>
     </div>
 
@@ -40,12 +40,12 @@
         <h2>🎨 视觉创作中心</h2>
         <div class="group">
             <label>画面描述</label>
-            <textarea id="prompt" rows="3" placeholder="写下你的创意..."></textarea>
+            <textarea id="prompt" rows="3" placeholder="写下创意..."></textarea>
         </div>
         <div class="group">
             <label>参考图 (可选)</label>
             <div class="ref-box" onclick="document.getElementById('ref-file').click()">
-                <div id="ref-placeholder"><span class="ref-hint">点击上传 (会自动压缩)</span></div>
+                <div id="ref-placeholder"><span class="ref-hint">点击上传参考图</span></div>
                 <img id="ref-preview">
                 <div id="clear-ref" class="clear-ref" onclick="clearRef(event)">✕</div>
                 <input type="file" id="ref-file" hidden accept="image/*" onchange="processFile(this)">
@@ -74,30 +74,25 @@
         } else alert("密码错误");
     }
 
-    // --- 核心：图片压缩处理 ---
     function processFile(input) {
         const file = input.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                let width = img.width, height = img.height;
-                // 限制最大长边为 800px，既能保留参考特征，又能极大地减小体积
-                const maxSide = 800;
-                if (width > height) {
-                    if (width > maxSide) { height = Math.round(height * maxSide / width); width = maxSide; }
-                } else {
-                    if (height > maxSide) { width = Math.round(width * maxSide / height); height = maxSide; }
-                }
-                canvas.width = width; canvas.height = height;
+                let w = img.width, h = img.height;
+                // 极致压缩：限制长边 500px
+                const max = 500;
+                if (w > h) { if (w > max) { h = Math.round(h * max / w); w = max; } }
+                else { if (h > max) { w = Math.round(w * max / h); h = max; } }
+                canvas.width = w; canvas.height = h;
                 const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                // 压缩质量设为 0.7
-                refBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                
+                ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0,0,w,h);
+                ctx.drawImage(img, 0, 0, w, h);
+                // 质量设为 0.4 
+                refBase64 = canvas.toDataURL('image/jpeg', 0.4);
                 document.getElementById('ref-preview').src = refBase64;
                 document.getElementById('ref-preview').style.display = "block";
                 document.getElementById('ref-placeholder').style.display = "none";
@@ -119,7 +114,7 @@
     async function handleGenerate() {
         const prompt = document.getElementById('prompt').value, ratio = document.getElementById('ratio').value, pixel = document.getElementById('pixel').value;
         const status = document.getElementById('status'), btn = document.getElementById('gen-btn');
-        if(!prompt) return alert("写点什么吧");
+        if(!prompt) return alert("写点描述词吧");
 
         let size = "1024x1024";
         if(ratio === "9:16") size = `${Math.floor(pixel*0.56)}x${pixel}`;
@@ -130,7 +125,7 @@
         btn.disabled = true;
         document.getElementById('res-img').style.display = "none";
         document.getElementById('download-box').style.display = "none";
-        status.innerText = "🚀 AI 正在构思中...";
+        status.innerText = "🚀 AI 正在构思渲染中...";
 
         try {
             const res = await fetch('/api/generate', {
@@ -138,8 +133,9 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt, pass: globalPass, size, ref_image: refBase64 })
             });
+            if (res.status === 413) throw new Error("图片依然太大，请换一张小图");
             const data = await res.json();
-            const tid = data.task_id || (data.data?.[0]?.task_id);
+            const tid = data.task_id || data.data?.[0]?.task_id;
             if(tid) startPolling(tid); else {
                 const u = findUrl(data);
                 if(u) renderResult(u); else throw new Error(data.error?.message || "启动失败");
@@ -150,17 +146,15 @@
     function startPolling(tid) {
         let sec = 0;
         const timer = setInterval(async () => {
-            sec += 3; document.getElementById('status').innerText = `⏳ 正在努力渲染 (${sec}s)...`;
-            try {
-                const res = await fetch('/api/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ taskId: tid, pass: globalPass })
-                });
-                const data = await res.json();
-                const u = findUrl(data);
-                if(u) { clearInterval(timer); renderResult(u); }
-            } catch(e) {}
+            sec += 3; document.getElementById('status').innerText = `⏳ 渲染中 (${sec}s)...`;
+            const res = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taskId: tid, pass: globalPass })
+            });
+            const data = await res.json();
+            const u = findUrl(data);
+            if(u) { clearInterval(timer); renderResult(u); }
         }, 3000);
     }
 
@@ -178,7 +172,7 @@
         const img = document.getElementById('res-img');
         img.src = url; img.style.display = "block";
         document.getElementById('download-box').style.display = "block";
-        document.getElementById('status').innerText = "✅ 渲染完成！";
+        document.getElementById('status').innerText = "✅ 搞定！";
         document.getElementById('gen-btn').disabled = false;
     }
 
@@ -188,7 +182,7 @@
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = `AI_Work_${Date.now()}.png`;
+            a.href = url; a.download = `AI_Image.png`;
             a.click();
         } catch(e) { window.open(currentImgUrl, '_blank'); }
     }
