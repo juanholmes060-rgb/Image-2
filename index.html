@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPT-Image-2 专业工作站</title>
+    <style>
+        :root { --primary: #000; --bg: #f5f7fa; }
+        body { font-family: system-ui; background: var(--bg); display: flex; justify-content: center; padding: 20px; }
+        .card { background: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 100%; max-width: 500px; }
+        textarea { width: 100%; padding: 15px; border: 1px solid #ddd; border-radius: 12px; resize: none; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 15px; background: var(--primary); color: #fff; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 15px; transition: 0.3s; }
+        button:disabled { background: #ccc; }
+        .result-area { margin-top: 20px; text-align: center; display: none; }
+        #res-img { width: 100%; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .status { font-size: 14px; color: #666; margin-top: 10px; }
+        .download-btn { background: #2ecc71; margin-top: 10px; }
+        .error-log { font-size: 12px; color: #e74c3c; background: #fdf2f2; padding: 10px; border-radius: 8px; margin-top: 15px; display: none; word-break: break-all; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2 style="margin: 0 0 20px 0;">🖼️ 视觉创作中心</h2>
+    <input type="password" id="access-pw" placeholder="输入访问密码 (661500)" style="width:100%; padding:10px; margin-bottom:10px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
+    <textarea id="prompt-input" rows="4" placeholder="描述你想要的画面，例如：一个极简风格的科技公司 Logo..."></textarea>
+    
+    <button id="main-btn" onclick="startProcess()">开始生成</button>
+    
+    <div id="status-text" class="status"></div>
+    
+    <div id="result-area" class="result-area">
+        <img id="res-img" src="" alt="生成结果">
+        <button class="download-btn" onclick="downloadImg()">保存图片到本地</button>
+    </div>
+
+    <div id="error-log" class="error-log"></div>
+</div>
+
+<script>
+    const PASS_CODE = "661500";
+    let currentImgUrl = "";
+
+    async function startProcess() {
+        const prompt = document.getElementById('prompt-input').value;
+        const pw = document.getElementById('access-pw').value;
+        const btn = document.getElementById('main-btn');
+        const status = document.getElementById('status-text');
+        const errBox = document.getElementById('error-log');
+        const resArea = document.getElementById('result-area');
+
+        if (!prompt || !pw) return alert("请填写完整信息");
+
+        // 重置 UI
+        btn.disabled = true;
+        errBox.style.display = "none";
+        resArea.style.display = "none";
+        status.innerText = "🚀 正在提交任务并扣费...";
+
+        try {
+            // 1. 提交任务
+            const res = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, pass: pw })
+            });
+            const data = await res.json();
+
+            // 2. 解析返回结果
+            if (data.data && data.data[0]) {
+                const item = data.data[0];
+                if (item.url) {
+                    showResult(item.url); // 如果直接出图了
+                } else if (item.task_id) {
+                    pollStatus(item.task_id); // 拿到任务ID，开始轮询
+                }
+            } else {
+                throw new Error(JSON.stringify(data));
+            }
+        } catch (e) {
+            btn.disabled = false;
+            status.innerText = "❌ 任务启动失败";
+            errBox.innerText = e.message;
+            errBox.style.display = "block";
+        }
+    }
+
+    // 轮询查询状态
+    async function pollStatus(taskId) {
+        const status = document.getElementById('status-text');
+        const pw = document.getElementById('access-pw').value;
+        let count = 0;
+
+        const timer = setInterval(async () => {
+            count++;
+            status.innerText = `⏳ 正在生图 (第 ${count * 3} 秒，请勿关闭)...`;
+
+            try {
+                const res = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ taskId, pass: pw })
+                });
+                const data = await res.json();
+
+                if (data.data && data.data[0] && data.data[0].url) {
+                    clearInterval(timer);
+                    showResult(data.data[0].url);
+                } else if (count > 40) { // 2分钟超时
+                    clearInterval(timer);
+                    status.innerText = "❌ 生成超时，请刷新重试";
+                    document.getElementById('main-btn').disabled = false;
+                }
+            } catch (e) {
+                console.error("查询出错", e);
+            }
+        }, 3000);
+    }
+
+    function showResult(url) {
+        currentImgUrl = url;
+        document.getElementById('res-img').src = url;
+        document.getElementById('result-area').style.display = "block";
+        document.getElementById('status-text').innerText = "✅ 生成成功！";
+        document.getElementById('main-btn').disabled = false;
+    }
+
+    // 强制下载逻辑
+    async function downloadImg() {
+        const status = document.getElementById('status-text');
+        status.innerText = "正在准备下载文件...";
+        try {
+            const response = await fetch(currentImgUrl);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `AI_Image_${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            status.innerText = "✅ 已触发下载";
+        } catch (e) {
+            alert("下载失败，请尝试长按图片保存");
+        }
+    }
+</script>
+</body>
+</html>
