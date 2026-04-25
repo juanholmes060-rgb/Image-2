@@ -28,9 +28,9 @@ export default async function handler(req, res) {
         size: size || "1024x1024"
       };
 
-      // 如果有参考图，加入参数
+      // 清洗 Base64 前缀（有些接口需要纯数据）
       if (ref_image) {
-        payload.ref_image = ref_image; 
+        payload.ref_image = ref_image.replace(/^data:image\/\w+;base64,/, "");
       }
 
       options.body = JSON.stringify(payload);
