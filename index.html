@@ -3,58 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 视觉中心</title>
+    <title>视觉中心</title>
     <style>
-        body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; padding: 20px; }
-        .card { background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 100%; max-width: 420px; }
-        textarea, input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
-        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
-        button:disabled { background: #ccc; }
-        #res-img { width: 100%; border-radius: 12px; display: none; margin-top: 15px; }
-        .st { margin: 15px 0; text-align: center; color: #666; font-size: 14px; }
-        .action-area { display: none; margin-top: 15px; background: #f9f9f9; padding: 15px; border-radius: 10px; border: 1px dashed #ccc; }
-        .url-text { font-size: 11px; color: #007aff; word-break: break-all; margin-bottom: 10px; display: block; }
-        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .sub-btn { background: #555; font-size: 13px; padding: 10px; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
+        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 12px; box-sizing: border-box; font-size: 14px; }
+        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #res-img { width: 100%; border-radius: 12px; margin-top: 15px; display: none; border: 1px solid #eee; }
+        .status { text-align: center; margin: 15px 0; font-size: 14px; color: #666; }
+        .action-box { display: none; margin-top: 15px; background: #fafafa; padding: 15px; border-radius: 12px; border: 1px dashed #ddd; }
+        .url-link { color: #007aff; font-size: 11px; word-break: break-all; margin-bottom: 12px; display: block; text-decoration: none; }
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .s-btn { background: #444; padding: 10px; font-size: 12px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2 style="text-align:center">🎨 视觉创作中心</h2>
+    <h3 style="text-align:center">🎨 视觉创作中心</h3>
     <input type="password" id="pw" placeholder="访问密码">
     <textarea id="pt" rows="3" placeholder="描述想要生成的画面..."></textarea>
-    <button id="btn" onclick="start()">开始生成图像</button>
+    <button id="main-btn" onclick="submitTask()">生成图像</button>
     
-    <div id="st" class="st">等待操作...</div>
-    
+    <div id="status" class="status">就绪</div>
     <img id="res-img">
 
-    <div id="action-area" class="action-area">
-        <span class="url-text" id="url-display"></span>
-        <div class="btn-group">
-            <button class="sub-btn" onclick="copyUrl()">复制地址</button>
-            <button class="sub-btn" style="background:#10b981" onclick="downloadImg()">保存图片</button>
+    <div id="action-box" class="action-box">
+        <strong style="font-size: 12px; display:block; margin-bottom: 5px;">图片直链：</strong>
+        <a id="url-text" class="url-link" target="_blank">点击查看原图</a>
+        <div class="btn-row">
+            <button class="s-btn" onclick="copyUrl()">复制地址</button>
+            <button class="s-btn" style="background:#28a745" onclick="downloadImg()">保存图片</button>
         </div>
     </div>
 </div>
 
 <script>
-    let timer = null;
-    let finalUrl = "";
+    let pollTimer = null;
+    let imgUrl = "";
 
-    async function start() {
+    async function submitTask() {
         const pt = document.getElementById('pt').value;
         const pw = document.getElementById('pw').value;
-        const st = document.getElementById('st');
-        const btn = document.getElementById('btn');
-        const action = document.getElementById('action-area');
+        const status = document.getElementById('status');
+        const btn = document.getElementById('main-btn');
+
+        if (!pt || !pw) return alert("请完整填写");
         
-        if(!pt || !pw) return alert("请填写完整");
         btn.disabled = true;
-        action.style.display = "none";
         document.getElementById('res-img').style.display = "none";
-        st.innerText = "🚀 任务提交中...";
+        document.getElementById('action-box').style.display = "none";
+        status.innerText = "🚀 任务提交中...";
 
         try {
             const res = await fetch('/api/generate', {
@@ -63,25 +63,31 @@
                 body: JSON.stringify({ prompt: pt, pass: pw })
             });
             const data = await res.json();
+            
+            // 提取 Task ID
             const tid = data.task_id || (data.data && data.data[0] && data.data[0].task_id);
-
-            if (tid) poll(tid, pw);
-            else {
-                const url = find(data);
-                if (url) show(url); else throw new Error("API未返回任务ID");
+            
+            if (tid) {
+                startPolling(tid, pw);
+            } else {
+                const url = findUrl(data);
+                if (url) renderResult(url);
+                else throw new Error("API 未返回任务 ID 或图片地址");
             }
         } catch (e) {
-            st.innerText = "❌ 失败: " + e.message;
+            status.innerText = "❌ 错误: " + e.message;
             btn.disabled = false;
         }
     }
 
-    function poll(tid, pw) {
-        const st = document.getElementById('st');
-        let sec = 0;
-        timer = setInterval(async () => {
-            sec += 3;
-            st.innerText = `⏳ AI 绘图中 (${sec}s)...`;
+    function startPolling(tid, pw) {
+        const status = document.getElementById('status');
+        let count = 0;
+        
+        pollTimer = setInterval(async () => {
+            count += 3;
+            status.innerText = `⏳ 正在绘制 (${count}s)...`;
+            
             try {
                 const res = await fetch('/api/generate', {
                     method: 'POST',
@@ -89,56 +95,71 @@
                     body: JSON.stringify({ taskId: tid, pass: pw })
                 });
                 const data = await res.json();
-                const url = find(data);
+                const url = findUrl(data);
+                
                 if (url) {
-                    clearInterval(timer);
-                    show(url);
+                    clearInterval(pollTimer);
+                    renderResult(url);
                 }
             } catch (e) {}
-            if (sec > 150) { clearInterval(timer); st.innerText = "❌ 超时"; document.getElementById('btn').disabled = false; }
+
+            if (count > 120) {
+                clearInterval(pollTimer);
+                status.innerText = "❌ 生成超时，请稍后刷新日志查看";
+                document.getElementById('main-btn').disabled = false;
+            }
         }, 3000);
     }
 
-    function find(o) {
-        if (!o) return null;
-        if (typeof o === 'string' && o.startsWith('http')) return o;
-        if (o.url) return o.url;
-        if (o.data && o.data[0] && o.data[0].url) return o.data[0].url;
-        if (o.images && o.images[0]) return o.images[0];
-        for (let k in o) { if (typeof o[k] === 'object') { const f = find(o[k]); if (f) return f; } }
+    function findUrl(obj) {
+        if (!obj) return null;
+        // 如果本身就是 https 开头的字符串
+        if (typeof obj === 'string' && obj.startsWith('http')) return obj;
+        // API Mart 常见的嵌套结构
+        if (obj.url) return obj.url;
+        if (obj.data && obj.data[0] && obj.data[0].url) return obj.data[0].url;
+        // 扫描所有属性（防止 API 结构变动）
+        for (let key in obj) {
+            if (typeof obj[key] === 'object') {
+                const found = findUrl(obj[key]);
+                if (found) return found;
+            } else if (typeof obj[key] === 'string' && obj[key].startsWith('http')) {
+                return obj[key];
+            }
+        }
         return null;
     }
 
-    function show(u) {
-        finalUrl = u;
+    function renderResult(url) {
+        imgUrl = url;
         const img = document.getElementById('res-img');
-        const st = document.getElementById('st');
-        const action = document.getElementById('action-area');
-        const urlDisplay = document.getElementById('url-display');
-
-        img.src = u;
+        const box = document.getElementById('action-box');
+        const link = document.getElementById('url-text');
+        
+        img.src = url;
         img.style.display = "block";
-        urlDisplay.innerText = u;
-        action.style.display = "block";
-        st.innerText = "✅ 生成成功！";
-        document.getElementById('btn').disabled = false;
+        link.innerText = url;
+        link.href = url;
+        box.style.display = "block";
+        document.getElementById('status').innerText = "✅ 生成完成！";
+        document.getElementById('main-btn').disabled = false;
     }
 
     function copyUrl() {
-        navigator.clipboard.writeText(finalUrl);
-        alert("地址已复制到剪贴板");
+        navigator.clipboard.writeText(imgUrl).then(() => alert("地址已复制"));
     }
 
     async function downloadImg() {
+        // 尝试通过 Blob 下载以避免浏览器直接打开
         try {
-            const response = await fetch(finalUrl);
-            const blob = await response.blob();
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `AI_Image_${Date.now()}.png`;
-            link.click();
-        } catch (e) {
-            window.open(finalUrl, '_blank');
+            const r = await fetch(imgUrl);
+            const b = await r.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(b);
+            a.download = `AI_Image_${Date.now()}.png`;
+            a.click();
+        } catch(e) {
+            window.open(imgUrl, '_blank');
         }
     }
 </script>
