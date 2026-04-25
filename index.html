@@ -3,62 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GPT-Image-2 专业工作站</title>
+    <title>视觉创作中心 - 增强版</title>
     <style>
-        :root { --primary: #000; --bg: #f5f7fa; }
-        body { font-family: system-ui; background: var(--bg); display: flex; justify-content: center; padding: 20px; }
-        .card { background: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 100%; max-width: 500px; }
-        textarea { width: 100%; padding: 15px; border: 1px solid #ddd; border-radius: 12px; resize: none; box-sizing: border-box; font-size: 16px; }
-        button { width: 100%; padding: 15px; background: var(--primary); color: #fff; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 15px; transition: 0.3s; }
-        button:disabled { background: #ccc; }
-        .result-area { margin-top: 20px; text-align: center; display: none; }
-        #res-img { width: 100%; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        .status { font-size: 14px; color: #666; margin-top: 10px; }
-        .download-btn { background: #2ecc71; margin-top: 10px; }
-        .error-log { font-size: 12px; color: #e74c3c; background: #fdf2f2; padding: 10px; border-radius: 8px; margin-top: 15px; display: none; word-break: break-all; }
+        :root { --primary: #000; --bg: #f8f9fa; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; color: #333; }
+        .card { background: #fff; padding: 30px; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 100%; max-width: 480px; }
+        h2 { margin: 0 0 20px 0; font-size: 22px; display: flex; align-items: center; gap: 10px; }
+        input, textarea { width: 100%; padding: 14px; border: 1px solid #e0e0e0; border-radius: 12px; margin-bottom: 12px; box-sizing: border-box; font-size: 16px; transition: 0.3s; }
+        input:focus, textarea:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(0,0,0,0.05); }
+        button { width: 100%; padding: 15px; background: var(--primary); color: #fff; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; transition: 0.3s; font-size: 16px; }
+        button:hover { background: #222; transform: translateY(-1px); }
+        button:disabled { background: #ccc; transform: none; cursor: not-allowed; }
+        .result-area { margin-top: 25px; display: none; text-align: center; border-top: 1px solid #eee; padding-top: 20px; }
+        #res-img { width: 100%; border-radius: 16px; margin-bottom: 15px; border: 1px solid #eee; }
+        .status { font-size: 14px; color: #666; margin: 15px 0; min-height: 20px; }
+        .error-box { background: #fff5f5; color: #e53e3e; padding: 12px; border-radius: 10px; font-size: 13px; margin-top: 15px; display: none; border: 1px solid #fed7d7; }
+        .download-btn { background: #10b981; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2 style="margin: 0 0 20px 0;">🖼️ 视觉创作中心</h2>
-    <input type="password" id="access-pw" placeholder="输入访问密码 (661500)" style="width:100%; padding:10px; margin-bottom:10px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
-    <textarea id="prompt-input" rows="4" placeholder="描述你想要的画面，例如：一个极简风格的科技公司 Logo..."></textarea>
+    <h2>🖼️ 视觉创作中心</h2>
     
-    <button id="main-btn" onclick="startProcess()">开始生成</button>
+    <input type="password" id="access-pw" placeholder="访问密码 (661500)">
+    <textarea id="prompt-input" rows="4" placeholder="描述你想要生成的画面内容..."></textarea>
+    
+    <button id="main-btn" onclick="handleSubmit()">开始生成</button>
     
     <div id="status-text" class="status"></div>
     
     <div id="result-area" class="result-area">
-        <img id="res-img" src="" alt="生成结果">
-        <button class="download-btn" onclick="downloadImg()">保存图片到本地</button>
+        <img id="res-img" src="" alt="生成的AI图像">
+        <button class="download-btn" onclick="saveImage()">下载原图到本地</button>
     </div>
 
-    <div id="error-log" class="error-log"></div>
+    <div id="error-box" class="error-box"></div>
 </div>
 
 <script>
     const PASS_CODE = "661500";
-    let currentImgUrl = "";
+    let imgUrl = "";
 
-    async function startProcess() {
+    async function handleSubmit() {
         const prompt = document.getElementById('prompt-input').value;
         const pw = document.getElementById('access-pw').value;
         const btn = document.getElementById('main-btn');
         const status = document.getElementById('status-text');
-        const errBox = document.getElementById('error-log');
+        const errBox = document.getElementById('error-box');
         const resArea = document.getElementById('result-area');
 
-        if (!prompt || !pw) return alert("请填写完整信息");
+        if (!prompt || !pw) return alert("请填写完整内容和密码");
+        if (pw !== PASS_CODE) return alert("密码错误");
 
-        // 重置 UI
+        // UI 初始化
         btn.disabled = true;
         errBox.style.display = "none";
         resArea.style.display = "none";
-        status.innerText = "🚀 正在提交任务并扣费...";
+        status.innerText = "🚀 任务正在提交至 API Mart...";
 
         try {
-            // 1. 提交任务
+            // 第一步：创建任务
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -66,34 +71,37 @@
             });
             const data = await res.json();
 
-            // 2. 解析返回结果
+            // 第二步：处理返回（任务 ID 或直接 URL）
             if (data.data && data.data[0]) {
-                const item = data.data[0];
-                if (item.url) {
-                    showResult(item.url); // 如果直接出图了
-                } else if (item.task_id) {
-                    pollStatus(item.task_id); // 拿到任务ID，开始轮询
+                const result = data.data[0];
+                if (result.url) {
+                    displayResult(result.url);
+                } else if (result.task_id) {
+                    pollImageStatus(result.task_id);
+                } else {
+                    throw new Error("API 返回了无法识别的数据结构");
                 }
             } else {
-                throw new Error(JSON.stringify(data));
+                throw new Error(data.error || "任务启动失败，请检查 API 额度");
             }
         } catch (e) {
             btn.disabled = false;
-            status.innerText = "❌ 任务启动失败";
+            status.innerText = "❌ 任务初始化异常";
             errBox.innerText = e.message;
             errBox.style.display = "block";
         }
     }
 
-    // 轮询查询状态
-    async function pollStatus(taskId) {
+    // 强化版轮询：增加时长到 3 分钟，增加重试容错
+    async function pollImageStatus(taskId) {
         const status = document.getElementById('status-text');
         const pw = document.getElementById('access-pw').value;
         let count = 0;
+        let retryCount = 0;
 
         const timer = setInterval(async () => {
             count++;
-            status.innerText = `⏳ 正在生图 (第 ${count * 3} 秒，请勿关闭)...`;
+            status.innerText = `⏳ AI 正在绘图中 (已等待 ${count * 3}s，请勿离开)...`;
 
             try {
                 const res = await fetch('/api/generate', {
@@ -101,49 +109,64 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ taskId, pass: pw })
                 });
+                
+                // 即使 fetch 失败（比如 Vercel 短暂超时），也不停止，继续下一次尝试
+                if (!res.ok) throw new Error("网络闪退");
+
                 const data = await res.json();
+                retryCount = 0; // 成功通讯，重置错误计次
 
                 if (data.data && data.data[0] && data.data[0].url) {
                     clearInterval(timer);
-                    showResult(data.data[0].url);
-                } else if (count > 40) { // 2分钟超时
-                    clearInterval(timer);
-                    status.innerText = "❌ 生成超时，请刷新重试";
-                    document.getElementById('main-btn').disabled = false;
+                    displayResult(data.data[0].url);
                 }
             } catch (e) {
-                console.error("查询出错", e);
+                retryCount++;
+                console.warn(`轮询异常重试中 (${retryCount}/10)...`);
+                if (retryCount > 10) {
+                    clearInterval(timer);
+                    status.innerText = "❌ 连接多次中断，请刷新页面查看历史";
+                    document.getElementById('main-btn').disabled = false;
+                }
+            }
+
+            // 硬超时限制：180秒 (60次 * 3秒)
+            if (count > 60) {
+                clearInterval(timer);
+                status.innerText = "❌ 任务超时。虽然后台可能仍在画，但前端已停止等待。";
+                document.getElementById('main-btn').disabled = false;
             }
         }, 3000);
     }
 
-    function showResult(url) {
-        currentImgUrl = url;
+    function displayResult(url) {
+        imgUrl = url;
         document.getElementById('res-img').src = url;
         document.getElementById('result-area').style.display = "block";
-        document.getElementById('status-text').innerText = "✅ 生成成功！";
+        document.getElementById('status-text').innerText = "✅ 生成成功！图片已就绪。";
         document.getElementById('main-btn').disabled = false;
     }
 
-    // 强制下载逻辑
-    async function downloadImg() {
-        const status = document.getElementById('status-text');
-        status.innerText = "正在准备下载文件...";
+    // 下载原图
+    async function saveImage() {
+        const btn = document.querySelector('.download-btn');
+        btn.innerText = "正在下载...";
         try {
-            const response = await fetch(currentImgUrl);
+            const response = await fetch(imgUrl);
             const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `AI_Image_${Date.now()}.png`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            status.innerText = "✅ 已触发下载";
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `AI_Artwork_${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            btn.innerText = "下载成功";
         } catch (e) {
-            alert("下载失败，请尝试长按图片保存");
+            alert("下载失败，请长按图片手动保存");
+            btn.innerText = "保存失败";
         }
     }
 </script>
+
 </body>
 </html>
