@@ -2,60 +2,37 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>视觉中心</title>
+    <title>AI 绘图</title>
     <style>
-        body { font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
-        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
-        input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 12px; box-sizing: border-box; font-size: 14px; }
-        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        #res-img { width: 100%; border-radius: 12px; margin-top: 15px; display: none; border: 1px solid #eee; }
-        .status { text-align: center; margin: 15px 0; font-size: 14px; color: #666; }
-        .action-box { display: none; margin-top: 15px; background: #fafafa; padding: 15px; border-radius: 12px; border: 1px dashed #ddd; }
-        .url-link { color: #007aff; font-size: 11px; word-break: break-all; margin-bottom: 12px; display: block; text-decoration: none; }
-        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .s-btn { background: #444; padding: 10px; font-size: 12px; }
+        body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; padding: 20px; }
+        .card { background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        textarea, input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #ccc; }
+        #res-img { width: 100%; border-radius: 8px; display: none; margin-top: 15px; }
+        .st { margin: 15px 0; text-align: center; color: #666; font-size: 13px; }
+        .box { display: none; margin-top: 15px; padding: 10px; background: #eee; border-radius: 8px; word-break: break-all; font-size: 11px; }
     </style>
 </head>
 <body>
-
 <div class="card">
-    <h3 style="text-align:center">🎨 视觉创作中心</h3>
-    <input type="password" id="pw" placeholder="访问密码">
-    <textarea id="pt" rows="3" placeholder="描述想要生成的画面..."></textarea>
-    <button id="main-btn" onclick="submitTask()">生成图像</button>
-    
-    <div id="status" class="status">就绪</div>
+    <input type="password" id="pw" placeholder="密码">
+    <textarea id="pt" rows="3" placeholder="画面描述词..."></textarea>
+    <button id="btn" onclick="go()">生成图片</button>
+    <div id="st" class="st">就绪</div>
     <img id="res-img">
-
-    <div id="action-box" class="action-box">
-        <strong style="font-size: 12px; display:block; margin-bottom: 5px;">图片直链：</strong>
-        <a id="url-text" class="url-link" target="_blank">点击查看原图</a>
-        <div class="btn-row">
-            <button class="s-btn" onclick="copyUrl()">复制地址</button>
-            <button class="s-btn" style="background:#28a745" onclick="downloadImg()">保存图片</button>
-        </div>
+    <div id="box" class="box">
+        <strong>链接：</strong><a id="url" target="_blank" style="color:blue">点击打开</a>
     </div>
 </div>
 
 <script>
-    let pollTimer = null;
-    let imgUrl = "";
-
-    async function submitTask() {
-        const pt = document.getElementById('pt').value;
-        const pw = document.getElementById('pw').value;
-        const status = document.getElementById('status');
-        const btn = document.getElementById('main-btn');
-
-        if (!pt || !pw) return alert("请完整填写");
-        
-        btn.disabled = true;
-        document.getElementById('res-img').style.display = "none";
-        document.getElementById('action-box').style.display = "none";
-        status.innerText = "🚀 任务提交中...";
-
+    let timer = null;
+    async function go() {
+        const pt = document.getElementById('pt').value, pw = document.getElementById('pw').value;
+        const st = document.getElementById('st'), btn = document.getElementById('btn');
+        if(!pt || !pw) return;
+        btn.disabled = true; st.innerText = "🚀 提交中...";
         try {
             const res = await fetch('/api/generate', {
                 method: 'POST',
@@ -63,104 +40,45 @@
                 body: JSON.stringify({ prompt: pt, pass: pw })
             });
             const data = await res.json();
-            
-            // 提取 Task ID
             const tid = data.task_id || (data.data && data.data[0] && data.data[0].task_id);
-            
-            if (tid) {
-                startPolling(tid, pw);
-            } else {
-                const url = findUrl(data);
-                if (url) renderResult(url);
-                else throw new Error("API 未返回任务 ID 或图片地址");
+            if(tid) poll(tid, pw); else {
+                const u = find(data); if(u) show(u); else throw new Error("ID丢失");
             }
-        } catch (e) {
-            status.innerText = "❌ 错误: " + e.message;
-            btn.disabled = false;
-        }
+        } catch(e) { st.innerText = "❌ "+e.message; btn.disabled = false; }
     }
 
-    function startPolling(tid, pw) {
-        const status = document.getElementById('status');
-        let count = 0;
-        
-        pollTimer = setInterval(async () => {
-            count += 3;
-            status.innerText = `⏳ 正在绘制 (${count}s)...`;
-            
-            try {
-                const res = await fetch('/api/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ taskId: tid, pass: pw })
-                });
-                const data = await res.json();
-                const url = findUrl(data);
-                
-                if (url) {
-                    clearInterval(pollTimer);
-                    renderResult(url);
-                }
-            } catch (e) {}
-
-            if (count > 120) {
-                clearInterval(pollTimer);
-                status.innerText = "❌ 生成超时，请稍后刷新日志查看";
-                document.getElementById('main-btn').disabled = false;
-            }
+    function poll(tid, pw) {
+        let sec = 0;
+        timer = setInterval(async () => {
+            sec += 3; document.getElementById('st').innerText = `⏳ 绘制中(${sec}s)...`;
+            const res = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taskId: tid, pass: pw })
+            });
+            const data = await res.json();
+            const u = find(data);
+            if(u) { clearInterval(timer); show(u); }
         }, 3000);
     }
 
-    function findUrl(obj) {
-        if (!obj) return null;
-        // 如果本身就是 https 开头的字符串
-        if (typeof obj === 'string' && obj.startsWith('http')) return obj;
-        // API Mart 常见的嵌套结构
-        if (obj.url) return obj.url;
-        if (obj.data && obj.data[0] && obj.data[0].url) return obj.data[0].url;
-        // 扫描所有属性（防止 API 结构变动）
-        for (let key in obj) {
-            if (typeof obj[key] === 'object') {
-                const found = findUrl(obj[key]);
-                if (found) return found;
-            } else if (typeof obj[key] === 'string' && obj[key].startsWith('http')) {
-                return obj[key];
-            }
-        }
+    function find(o) {
+        if(!o) return null;
+        if(typeof o === 'string' && o.startsWith('http')) return o;
+        if(o.url) return o.url;
+        if(o.data && o.data[0] && o.data[0].url) return o.data[0].url;
+        for(let k in o) { if(typeof o[k] === 'object') { const f = find(o[k]); if(f) return f; } }
         return null;
     }
 
-    function renderResult(url) {
-        imgUrl = url;
-        const img = document.getElementById('res-img');
-        const box = document.getElementById('action-box');
-        const link = document.getElementById('url-text');
-        
-        img.src = url;
-        img.style.display = "block";
-        link.innerText = url;
-        link.href = url;
-        box.style.display = "block";
-        document.getElementById('status').innerText = "✅ 生成完成！";
-        document.getElementById('main-btn').disabled = false;
-    }
-
-    function copyUrl() {
-        navigator.clipboard.writeText(imgUrl).then(() => alert("地址已复制"));
-    }
-
-    async function downloadImg() {
-        // 尝试通过 Blob 下载以避免浏览器直接打开
-        try {
-            const r = await fetch(imgUrl);
-            const b = await r.blob();
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(b);
-            a.download = `AI_Image_${Date.now()}.png`;
-            a.click();
-        } catch(e) {
-            window.open(imgUrl, '_blank');
-        }
+    function show(u) {
+        document.getElementById('res-img').src = u;
+        document.getElementById('res-img').style.display = "block";
+        document.getElementById('url').href = u;
+        document.getElementById('url').innerText = u;
+        document.getElementById('box').style.display = "block";
+        document.getElementById('st').innerText = "✅ 完成";
+        document.getElementById('btn').disabled = false;
     }
 </script>
 </body>
